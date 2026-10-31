@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US Weather Model Comparison | Hadi Zanganeh Kia</title>
+<meta name="description" content="Every day, 30 weather forecasts for the United States side by side: AI foundation models and physics models run at the University of Houston, and operational forecasts from NOAA, ECMWF and other centres, verified against weather stations.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0b0f17; --panel:#131a24; --panel2:#18212e; --line:#263243; --text:#e8edf4; --muted:#8a97a8; --accent:#4f9dff;
+    --ai:#b07cff; --ai-bg:rgba(176,124,255,.14); --nwp:#2fbf8f; --nwp-bg:rgba(47,191,143,.14); --dl:#f0a33a; --dl-bg:rgba(240,163,58,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.18);
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f4f6f9; --panel:#ffffff; --panel2:#f7f9fc; --line:#dde3ea; --text:#17202c; --muted:#5b6878; --accent:#1f6fe0;
+      --ai:#7b3fe4; --ai-bg:rgba(123,63,228,.09); --nwp:#0f8f63; --nwp-bg:rgba(15,143,99,.09); --dl:#b8640a; --dl-bg:rgba(184,100,10,.09);
+      --shadow:0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.06); }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-padding-top:64px; }
+  body { margin:0; font:15px/1.55 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+  .wrap { max-width:1440px; margin:auto; padding:0 28px; }
+
+  /* top bar */
+  nav.top { position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  nav.top .wrap { display:flex; align-items:center; gap:22px; height:56px; }
+  nav.top .brand { font-weight:700; letter-spacing:-.01em; color:var(--text); white-space:nowrap; }
+  nav.top .links { display:flex; gap:18px; font-size:.9rem; overflow-x:auto; }
+  nav.top .links a { color:var(--muted); white-space:nowrap; } nav.top .links a:hover { color:var(--text); text-decoration:none; }
+  nav.top .home { margin-left:auto; font-size:.85rem; white-space:nowrap; }
+
+  /* hero */
+  header.hero { padding:38px 0 18px; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.09em; font-size:.75rem; font-weight:600; color:var(--accent); }
+  h1 { margin:6px 0 8px; font-size:2.05rem; line-height:1.2; letter-spacing:-.02em; font-weight:700; }
+  .lead { color:var(--muted); max-width:900px; font-size:1.02rem; margin:0; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin-top:22px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
+  .stat .n { font-size:1.6rem; font-weight:700; letter-spacing:-.02em; }
+  .stat .t { color:var(--muted); font-size:.85rem; }
+  .stat.ai { border-top:3px solid var(--ai); } .stat.nwp { border-top:3px solid var(--nwp); } .stat.dl { border-top:3px solid var(--dl); }
+  .meta { color:var(--muted); font-size:.88rem; margin-top:14px; }
+
+  /* badges */
+  .badge { display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .badge::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .badge.ai { color:var(--ai); background:var(--ai-bg); } .badge.nwp { color:var(--nwp); background:var(--nwp-bg); } .badge.dl { color:var(--dl); background:var(--dl-bg); }
+
+  /* sections */
+  section.block { margin-top:40px; }
+  h2 { font-size:1.35rem; margin:0 0 4px; letter-spacing:-.01em; }
+  .sub { color:var(--muted); font-size:.9rem; }
+  .controls { position:sticky; top:56px; z-index:5; background:var(--bg); padding:12px 0; display:flex; flex-wrap:wrap; gap:12px 16px; align-items:center; border-bottom:1px solid var(--line); }
+  .controls.static { position:static; border:0; padding-top:6px; }
+  label { font-size:.85rem; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  select, input[type=range] { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 9px; font:inherit; font-size:.88rem; }
+  .seg { display:flex; gap:4px; flex-wrap:wrap; }
+  .seg button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 11px; cursor:pointer; font:inherit; font-size:.84rem; }
+  .seg button:hover { border-color:var(--accent); }
+  .seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg button.f-ai.on { background:var(--ai); border-color:var(--ai); } .seg button.f-nwp.on { background:var(--nwp); border-color:var(--nwp); } .seg button.f-dl.on { background:var(--dl); border-color:var(--dl); }
+  .tl { display:flex; align-items:center; gap:8px; font-size:.88rem; }
+  .tl input[type=range] { width:260px; padding:0; }
+  .tl button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:5px 11px; cursor:pointer; }
+  #leadlab { min-width:250px; }
+
+  .grouphead { display:flex; align-items:baseline; gap:10px; margin:22px 0 2px; }
+  .grouphead h3 { margin:0; font-size:1.02rem; }
+  .grouphead .sub { font-size:.84rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:14px; margin-top:10px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); transition:transform .12s ease; }
+  .card:hover { transform:translateY(-1px); }
+  .card.ai { border-top:3px solid var(--ai); } .card.nwp { border-top:3px solid var(--nwp); } .card.dl { border-top:3px solid var(--dl); }
+  .card img { width:100%; display:block; background:#fff; cursor:zoom-in; }
+  .card .cap { padding:9px 12px; font-size:.85rem; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .card .cap .name { font-weight:600; }
+  .card .cap .info { font-size:.75rem; color:var(--muted); cursor:pointer; border:1px solid var(--line); border-radius:999px; padding:1px 7px; margin-left:6px; }
+  .kind { color:var(--muted); }
+  .na { padding:44px 12px; text-align:center; color:var(--muted); font-size:.9rem; background:var(--panel2); }
+
+  .chartbox { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; height:420px; box-shadow:var(--shadow); }
+  table.ver { width:100%; border-collapse:collapse; font-size:.87rem; background:var(--panel); }
+  table.ver th, table.ver td { padding:7px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  table.ver th { color:var(--muted); font-weight:600; background:var(--panel2); position:sticky; top:0; }
+  table.ver td.l, table.ver th.l { text-align:left; }
+  table.ver tr.top td { font-weight:600; }
+  table.ver tr:hover td { background:var(--panel2); }
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); }
+  .notes { color:var(--muted); font-size:.88rem; }
+  .notes li { margin:6px 0; }
+
+  /* model guide */
+  .guide { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; margin-top:12px; }
+  .mcard { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); }
+  .mcard.ai { border-left:4px solid var(--ai); } .mcard.nwp { border-left:4px solid var(--nwp); } .mcard.dl { border-left:4px solid var(--dl); }
+  .mcard h4 { margin:0 0 4px; font-size:.98rem; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .mcard .by { color:var(--muted); font-size:.82rem; margin-bottom:6px; }
+  .mcard p { margin:6px 0 0; font-size:.86rem; }
+  .mcard dl { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; margin:8px 0 0; font-size:.8rem; }
+  .mcard dt { color:var(--muted); } .mcard dd { margin:0; }
+  .mcard.flash { outline:2px solid var(--accent); }
+  .legend3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; margin-top:12px; }
+  .legend3 > div { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:.87rem; box-shadow:var(--shadow); }
+
+  footer { margin-top:56px; border-top:1px solid var(--line); padding:22px 0 40px; color:var(--muted); font-size:.84rem; }
+  #zoom { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:20; cursor:zoom-out; }
+  #zoom img { max-width:95vw; max-height:95vh; background:#fff; border-radius:8px; }
+  @media (max-width:640px) { .wrap { padding:0 16px; } h1 { font-size:1.55rem; } .grid { grid-template-columns:1fr; } nav.top .home { display:none; } }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <span class="brand">US Forecast Comparison</span>
+  <div class="links"><a href="#maps">Maps</a><a href="#versec">Accuracy</a><a href="#cities">Cities</a><a href="#outlook">Weeks 3–6</a><a href="#rainai">rainfallAI</a><a href="#models">Models</a><a href="#about">Methods</a></div>
+  <a class="home" href="https://hadizkia.github.io/">← hadizkia.github.io</a>
+</div></nav>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">Daily · contiguous United States · 7-day forecasts</div>
+  <h1>AI and physics weather models, side by side</h1>
+  <p class="lead">Every day the same forecast start time is run through AI weather foundation models and physics models on the
+    University of Houston's Carya cluster, and compared with the operational forecasts of NOAA, ECMWF and other weather
+    centres. Every forecast is then checked against thousands of weather stations.</p>
+  <div class="stats" id="stats"></div>
+  <div class="meta" id="meta">Loading…</div>
+</header>
+
+<main>
+  <section class="block" id="maps">
+    <h2>Forecast maps</h2>
+    <div class="sub">Click a map to enlarge it. Colours mark where each forecast comes from.</div>
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-m="daily" class="on">7 days (daily)</button>
+        <button data-m="hourly">Next 48 h (3-hourly)</button>
+        <button data-m="hourly1">Next 48 h (hourly)</button>
+      </div>
+      <label>Field <select id="field"></select></label>
+      <div class="seg" id="days"></div>
+      <div class="tl" id="timeline" style="display:none">
+        <button id="play" title="Play / pause">▶</button>
+        <input type="range" id="lead" min="0" value="0" step="1">
+        <span id="leadlab"></span>
+      </div>
+      <div class="seg" id="groupf">
+        <button data-g="all" class="on">All</button>
+        <button data-g="ai" class="f-ai">AI · run here</button>
+        <button data-g="nwp" class="f-nwp">Physics · run here</button>
+        <button data-g="dl" class="f-dl">Downloaded</button>
+      </div>
+      <label><input type="checkbox" id="spreadOnly"> spread only</label>
+    </div>
+    <div id="grid"></div>
+  </section>
+
+  <section class="block" id="versec" style="display:none">
+    <h2>How accurate were the models last week?</h2>
+    <div class="sub" id="vermeta"></div>
+    <div class="controls static">
+      <div class="seg" id="vervar"></div>
+      <div class="seg" id="verrange">
+        <button data-r="vars" class="on">All lead days (7-day models)</button>
+        <button data-r="short">Days 1–2 (all models, incl. HRRR, NAM)</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="ver" id="vertab"></table></div>
+    <div class="notes" id="vernote" style="margin-top:8px"></div>
+  </section>
+
+  <section class="block" id="cities">
+    <h2 id="cityhead">City forecasts (6-hourly, 7 days)</h2>
+    <div class="controls static">
+      <label>City <select id="city"></select></label>
+      <span class="kind" id="tzlab"></span>
+      <label>Variable <select id="cvar">
+        <option value="t2m">2 m temperature (°F)</option>
+        <option value="wind">10 m wind speed (mph)</option>
+        <option value="rh">2 m relative humidity (%)</option>
+        <option value="precip6h">6 h precipitation (in)</option>
+        <option value="precip3h">3 h precipitation (in)</option>
+        <option value="precip1h">1 h precipitation (in)</option>
+      </select></label>
+      <div class="seg" id="cgroupf">
+        <button data-g="all" class="on">All</button>
+        <button data-g="ai" class="f-ai">AI · run here</button>
+        <button data-g="nwp" class="f-nwp">Physics · run here</button>
+        <button data-g="dl" class="f-dl">Downloaded</button>
+      </div>
+    </div>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="sub" style="margin-top:6px">Line style: solid = AI run here, thick = physics run here, dashed = downloaded. Click a legend entry to hide a model.</div>
+  </section>
+
+  <section class="block" id="outlook" style="display:none">
+    <h2>Weeks 3–6 temperature outlook <span class="badge dl" style="vertical-align:middle">experimental</span></h2>
+    <div class="sub" id="pbcmeta"></div>
+    <div class="controls static"><div class="seg" id="pbcweeks"></div></div>
+    <div class="grid" id="pbcgrid"></div>
+    <div class="notes" style="margin-top:10px">
+      <p style="margin:0 0 6px">How likely is each week to be <b>warmer</b> or <b>colder than normal</b>? "Normal" is the 1991–2020
+      climate of that place and time of year (CPC station analysis): a week counts as warmer than normal if its mean temperature is
+      in the warmest 40 % of past weeks, colder if in the coldest 40 %, so with no forecast information both chances would be 40 %.</p>
+      <p style="margin:0 0 6px">Method: the 16 runs of NOAA's CFSv2 seasonal model started on the date shown (4 runs at each of
+      00/06/12/18 UTC) are statistically corrected with a probabilistic bias correction in the spirit of Microsoft's PBC
+      (Guan et al. 2026): for each 1° grid cell and week, the observed outcome is regressed on the ensemble-mean forecast over
+      seven years of past CFSv2 forecasts (2019–2026) from the same time of year.</p>
+      <p style="margin:0">Skill is modest, as for all forecasts this far ahead: in leave-one-year-out cross-validation over 902 past
+      forecasts the ranked probability skill score against climatology is <span id="pbcskill"></span> (0 = no better than
+      climatology, 1 = perfect). Part of the skill comes from the warming trend since 1991–2020. Rainfall at these lead times showed
+      almost no skill, so it is not shown.</p>
+    </div>
+  </section>
+
+  <section class="block" id="rainai">
+    <h2>rainfallAI: our observation-trained rain model <span class="badge ai" style="vertical-align:middle">runs daily · experimental</span></h2>
+    <div class="sub">A deep-learning model built here that turns the forecasts of GFS, GEFS, NBM and HRRR into calibrated rain probabilities
+      and amounts for days 1–7, trained only against observed rain (NOAA MRMS radar + gauge, 2021–2025).</div>
+    <h3 style="margin:16px 0 4px;font-size:1rem">Test period: 37 seven-day forecasts, 1 July – 22 October 2026</h3>
+    <div class="sub">Daily rain at lead days 1–7 verified against NOAA MRMS (0.1° grid, contiguous US), all models on identical days and
+      grid cells (every third day, because GraphCast and FuXi were re-run for this period). Mean over the 7 lead days; best in bold.</div>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver">
+      <tr><th>Rank (ETS)</th><th class="l">Model</th><th class="l">Source</th><th>ETS ≥0.1 in ↑</th><th>ETS ≥1 in ↑</th><th>SEEPS ↓</th><th>IOA ↑</th><th>MAE (mm) ↓</th><th>Rain-day bias (1 = right)</th></tr>
+      <tr class="top"><td>1</td><td class="l">rainfallAI (ensemble)</td><td class="l"><span class="badge ai">AI · run here</span></td><td><b>0.339</b></td><td>0.145</td><td>0.559</td><td>0.659</td><td><b>2.11</b></td><td>1.33</td></tr>
+      <tr><td>2</td><td class="l">Statistical post-processing (our baseline)</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.291</td><td><b>0.148</b></td><td>0.641</td><td>0.619</td><td>2.31</td><td>0.90</td></tr>
+      <tr class="top"><td>3</td><td class="l">ECMWF AIFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.291</td><td>0.139</td><td><b>0.557</b></td><td><b>0.670</b></td><td>2.43</td><td>1.67</td></tr>
+      <tr><td>4</td><td class="l">FuXi</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.265</td><td>0.070</td><td>0.680</td><td>0.540</td><td>2.22</td><td>1.20</td></tr>
+      <tr><td>5</td><td class="l">NOAA AIGFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.260</td><td>0.112</td><td>0.609</td><td>0.614</td><td>2.51</td><td>1.61</td></tr>
+      <tr><td>6</td><td class="l">GraphCast</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.256</td><td>0.114</td><td>0.618</td><td>0.613</td><td>2.65</td><td>1.73</td></tr>
+      <tr><td>7</td><td class="l">ECMWF IFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.253</td><td>0.115</td><td>0.616</td><td>0.604</td><td>2.64</td><td>1.48</td></tr>
+      <tr><td>8</td><td class="l">NOAA GEFS (mean)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.241</td><td>0.076</td><td>0.674</td><td>0.572</td><td>2.51</td><td>1.78</td></tr>
+      <tr><td>9</td><td class="l">National Blend of Models (NBM)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.238</td><td>0.125</td><td>0.639</td><td>0.617</td><td>2.55</td><td>1.43</td></tr>
+      <tr><td>10</td><td class="l">NOAA GFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.231</td><td>0.102</td><td>0.659</td><td>0.569</td><td>2.66</td><td>1.38</td></tr>
+    </table></div>
+    <div class="notes" style="margin-top:8px">
+      <p style="margin:0 0 6px"><b>Reading the table.</b> rainfallAI ranks first on the ≥0.1 in threat score and on error, and it is the best model on
+      day 1. ECMWF's AI model AIFS remains ahead on SEEPS and the index of agreement (IOA, which weights large errors), especially from day 3 on, and
+      the statistical baseline detects 1-inch days about as well. rainfallAI's amount is the model's 75 % quantile, raised to 0.5 or 1 inch where its own
+      probability of that much rain passes 30 % or 20 %. That rule was chosen on data before the test period; it forecasts light rain somewhat too often.</p>
+      <p style="margin:0 0 6px">ETS = equitable threat score; SEEPS = stable equitable error in probability space (WMO/ECMWF headline rain
+      score, 0 = perfect); IOA = Willmott index of agreement (1 = perfect); MAE = mean absolute error of the daily total. This table is scored on a
+      grid (MRMS radar + gauges), which is also what rainfallAI was trained on, so the independent station table above is the fairer everyday
+      comparison. Re-scoring with conservative instead of bilinear regridding of the raw models changed no rank in an 8-model check.
+      Several versions of the model were scored on this period while it was being developed, so its numbers here are slightly optimistic.</p>
+      <p style="margin:0">rainfallAI runs every day since 31 October 2026 (precipitation maps above, "AI · run here" group) and is ranked in
+      the station-based precipitation table.</p>
+    </div>
+  </section>
+
+  <section class="block" id="models">
+    <h2>The models</h2>
+    <div class="sub">Three kinds of forecast are shown. All of them start from the 00 UTC time of the day shown at the top.</div>
+    <div class="legend3">
+      <div><span class="badge ai">AI · run here</span><p style="margin:8px 0 0">AI weather foundation models, trained on decades of
+        past weather (mostly the ECMWF ERA5 reanalysis). We run them ourselves every day on NVIDIA L40S GPUs on Carya, all started
+        from the same NOAA GFS analysis, so differences come from the models alone. Each takes minutes rather than hours.</p></div>
+      <div><span class="badge nwp">Physics · run here</span><p style="margin:8px 0 0">Numerical models that solve the equations of the
+        atmosphere on a grid. We run them ourselves every day on Carya's CPU nodes, also started from the GFS analysis. They range from
+        a 12 km regional weather model (WRF) to global climate models (CESM, E3SM) run in forecast mode.</p></div>
+      <div><span class="badge dl">Downloaded</span><p style="margin:8px 0 0">The official forecasts of national weather centres (NOAA,
+        ECMWF, Environment Canada, DWD, Met Office, Météo-France, NASA, US Navy), downloaded each morning from their open-data services.
+        Each starts from that centre's own data assimilation, which is usually the biggest advantage over the models we run.</p></div>
+    </div>
+    <div id="guide"></div>
+  </section>
+
+  <section class="block notes" id="about">
+    <h2>Methods and caveats</h2>
+    <ul>
+      <li><b>Next 48 h (3-hourly)</b> shows the first two days at 3-hour steps from the models that output that often (for example ECMWF IFS, NOAA GFS, Pangu-Weather's 3-hour model, WRF, CESM, E3SM and ICON, as available that day). <b>Next 48 h (hourly)</b> shows the models with hourly output. Map times are UTC with US Central time in brackets; precipitation is the 3 h (or 1 h) total ending at that time.</li>
+      <li>Temperatures are in °F, precipitation in inches, wind in mph. City charts are shown in each city's own local time (daylight saving included).</li>
+      <li><b>Verification</b>: every model's forecasts from the last seven 00 UTC cycles (re-run as hindcasts where the daily run did not exist yet) are interpolated to ~2,400 ASOS/AWOS weather stations (Iowa Environmental Mesonet) and compared with the hourly reports at 00/06/12/18 UTC. Temperature, humidity and wind speed are ranked by root-mean-square error (RMSE, lower is better); the index of agreement (IOA, Willmott 1981: 1 − Σ(F−O)² / Σ(|F−Ō|+|O−Ō|)², 1 = perfect, 0 = no better than the observed mean) is shown for every variable except wind direction; wind direction by mean absolute angle error (MAE, only when the observed wind is ≥5 kt); bias is forecast minus observed. Precipitation compares 24 h totals and is ranked by the equitable threat score for ≥0.1 in (ETS, higher is better; 0 = no skill); ETS for ≥0.5 in (heavier rain) is also shown. All ranked models are scored on exactly the same station times. Stations measure one point while models predict a grid-box average, and no terrain-height correction is applied, so coarse models are penalized over mountains.</li>
+      <li>Short-range models (HRRR, NAM, RRFS, ARPEGE) stop at their last forecast hour. Models covering less than 97% of the stations are listed below the ranking with their own-domain score, so they do not change the other models' station sample.</li>
+      <li>"Day N" means hours 24(N−1)–24N after the start time. Maxima and minima use 6-hourly output, so true daily extremes may be slightly higher or lower.</li>
+      <li><b>Spread</b> is the standard deviation across all models that predict a field. Large spread means the forecast is uncertain.</li>
+      <li>Most AI models do not predict surface humidity or rain. For them, surface humidity is estimated from the model's lowest pressure level above ground (1000/925/850/700 hPa), so humidity-based indices are approximate. Fields a model cannot provide are left out.</li>
+      <li>Indices: heat index (NWS Rothfusz); WBGT (simplified, shade); Fosberg Fire Weather Index; Hot-Dry-Windy Index (surface approximation: VPD × wind); reference ET from Hargreaves–Samani; 7-day P − ET₀ as the forecast's contribution to drying or wetting. Drought indices such as SPI or the US Drought Monitor need months of observations and are not forecast here.</li>
+      <li>The climate models (CESM, E3SM) cycle their land surface from day to day. CESM's land was cold-started on 28 Oct 2026, so expect a cold 2 m temperature bias for the first weeks; E3SM's land starts from a 1-year spin-up from 30 Oct 2026.</li>
+      <li>Data: NOAA/NCEP products are public domain. ECMWF IFS, AIFS and ensemble forecasts © ECMWF, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> (ECMWF open data). Other centres' data are used under their open-data terms. Several AI model weights are licensed for non-commercial use only.</li>
+      <li>Research product. Use official <a href="https://www.weather.gov/">NWS forecasts</a> for decisions.</li>
+    </ul>
+  </section>
+</main>
+<footer>
+  Built and run by <a href="https://hadizkia.github.io/">Hadi Zanganeh Kia</a>, University of Houston, on the Carya cluster.
+  Updated automatically every day. <span id="footmeta"></span>
+</footer>
+</div>
+<div id="zoom"><img alt=""></div>
+
+<script>
+const BASE = "latest/";
+let M, CITIES, SUBC = {}, chart, day = 1, mode = "daily", lead = 0, timer = null, groupF = "all", cgroupF = "all";
+const $ = id => document.getElementById(id);
+
+// ------------------------------------------------------------ where each forecast comes from
+const RUN_AI = new Set(["rainai", "graphcast", "gencast", "aurora", "aurora15", "pangu", "pangu3", "fuxi", "fengwu", "sfno", "fcn3"]);
+const RUN_NWP = new Set(["wrf", "cesm", "e3sm", "icon", "mpas"]);
+const group = id => RUN_AI.has(id) ? "ai" : RUN_NWP.has(id) ? "nwp" : "dl";
+const GROUPS = {
+  ai: {label: "AI · run here", title: "AI foundation models we run on Carya's GPUs"},
+  nwp: {label: "Physics · run here", title: "Numerical (physics) models we run on Carya's CPUs"},
+  dl: {label: "Downloaded", title: "Operational forecasts downloaded from weather centres"},
+};
+const badge = id => `<span class="badge ${group(id)}">${GROUPS[group(id)].label}</span>`;
+
+// ------------------------------------------------------------ model guide (what each one is)
+const DOCS = {
+  ifs: {by: "ECMWF (Europe)", type: "Physics, global", res: "~9 km (open data at 0.25°)", text: "The European Centre's Integrated Forecasting System, widely regarded as the most accurate global physics model. Starts from ECMWF's own 4D-Var data assimilation."},
+  aifs: {by: "ECMWF (Europe)", type: "AI, global (operational)", res: "0.25°", text: "ECMWF's Artificial Intelligence Forecasting System: a graph neural network with a transformer processor, trained on ERA5 and ECMWF analyses and run operationally from ECMWF's own analysis."},
+  ifs_ens: {by: "ECMWF (Europe)", type: "Physics ensemble mean", res: "~9 km members (0.25° open data)", text: "Mean of the 50 perturbed members of ECMWF's ensemble, computed here from the open-data members. Averaging smooths out unpredictable details, which usually lowers the error from day 3–4 on."},
+  aifs_ens: {by: "ECMWF (Europe)", type: "AI ensemble mean", res: "0.25°", text: "Mean of the 51 members (control + 50) of ECMWF's AI ensemble, computed here from the open-data members."},
+  gfs: {by: "NOAA NCEP (USA)", type: "Physics, global", res: "~13 km (0.25° data)", text: "The US Global Forecast System (FV3 dynamical core). Its analysis is also the starting point for every model we run ourselves."},
+  gefs: {by: "NOAA NCEP (USA)", type: "Physics ensemble mean", res: "~25 km members", text: "Mean of NOAA's 31-member Global Ensemble Forecast System (GEFS v12)."},
+  aigfs: {by: "NOAA (USA)", type: "AI, global (operational)", res: "0.25°", text: "NOAA's AI global forecast, based on Google DeepMind's GraphCast and started from NOAA's GFS data assimilation."},
+  nbm: {by: "NOAA NWS (USA)", type: "Statistical blend", res: "2.5 km", text: "The National Blend of Models combines many models (GFS, GEFS, ECMWF, Canadian, NAM, HRRR…) and corrects them with observations. It is the basis of official NWS forecasts."},
+  hrrr: {by: "NOAA (USA)", type: "Physics, regional", res: "3 km, to 48 h", text: "High-Resolution Rapid Refresh: a convection-allowing model updated every hour with radar data; best for storms in the first two days."},
+  nam: {by: "NOAA (USA)", type: "Physics, regional", res: "12 km, to 84 h", text: "The North American Mesoscale model, NOAA's older regional model."},
+  rrfs: {by: "NOAA (USA)", type: "Physics, regional", res: "3 km, to 84 h", text: "Rapid Refresh Forecast System, the FV3-based convection-allowing successor to NAM and HRRR."},
+  navgem: {by: "US Navy FNMOC", type: "Physics, global", res: "0.5° data", text: "The Navy Global Environmental Model. No 2 m humidity is distributed, so humidity indices are not shown for it."},
+  gem: {by: "Environment and Climate Change Canada", type: "Physics, global", res: "15 km", text: "Canada's Global Environmental Multiscale model (GDPS)."},
+  icon_dwd: {by: "Deutscher Wetterdienst (Germany)", type: "Physics, global", res: "13 km", text: "DWD's operational ICON model on an icosahedral grid."},
+  ukmo: {by: "UK Met Office", type: "Physics, global", res: "~10 km", text: "The Met Office Unified Model, global configuration."},
+  arpege: {by: "Météo-France", type: "Physics, global", res: "0.25° data, to 102 h", text: "Météo-France's global model (stretched grid, finest over France). No 500 hPa map: that field is only in a much larger file."},
+  geosfp: {by: "NASA GMAO", type: "Physics, global", res: "0.25° data", text: "NASA's Goddard Earth Observing System forward-processing forecast. Surface fields are hourly averages, so values are smoother."},
+  rainai: {by: "This lab (rainfallAI project)", type: "AI post-processing, precipitation only", res: "0.1° (shown at 0.25°)", text: "Our own model: an ensemble of a U-Net, a vision transformer and a graph neural network that turns the GFS, GEFS, NBM and HRRR forecasts, plus terrain, into calibrated daily rain, trained only on observed rain (NOAA MRMS radar + gauge, 2021–2025). Daily totals are split into 6-hour steps with NBM's timing. See the rainfallAI section for its test scores.", ref: "#rainai"},
+  graphcast: {by: "Google DeepMind", type: "AI, graph neural network", res: "0.25°, 6 h steps", text: "GraphCast (Lam et al. 2023, Science). Predicts the global atmosphere 6 hours ahead, then repeats.", ref: "https://www.science.org/doi/10.1126/science.adi2336"},
+  gencast: {by: "Google DeepMind", type: "AI, diffusion ensemble", res: "1°, 12 h steps", text: "GenCast (Price et al. 2025, Nature), a generative model that samples possible weather. One member is shown, so it is noisier than the ensemble mean would be.", ref: "https://www.nature.com/articles/s41586-024-08252-9"},
+  aurora: {by: "Microsoft", type: "AI foundation model", res: "0.25°, 6 h steps", text: "Aurora (Bodnar et al. 2025, Nature), a 1.3-billion-parameter foundation model of the atmosphere.", ref: "https://www.nature.com/articles/s41586-025-09005-y"},
+  aurora15: {by: "Microsoft", type: "AI foundation model", res: "0.25°", text: "Aurora 1.5, a newer Aurora release."},
+  pangu: {by: "Huawei", type: "AI, 3-D transformer", res: "0.25°, 6 h (and 3 h) steps", text: "Pangu-Weather (Bi et al. 2023, Nature), an Earth-specific 3-D transformer; its 3-hour model feeds the 48 h view.", ref: "https://www.nature.com/articles/s41586-023-06185-3"},
+  fuxi: {by: "Fudan University", type: "AI, cascaded transformer", res: "0.25°, 6 h steps", text: "FuXi (Chen et al. 2023, npj Climate and Atmospheric Science), separate models for short, medium and long lead times.", ref: "https://www.nature.com/articles/s41612-023-00512-1"},
+  fengwu: {by: "Shanghai AI Laboratory", type: "AI, multi-modal transformer", res: "0.25°, 6 h steps", text: "FengWu (Chen et al. 2023), which treats each variable group as its own modality."},
+  sfno: {by: "NVIDIA", type: "AI, neural operator", res: "0.25°, 6 h steps", text: "Spherical Fourier Neural Operator (Bonev et al. 2023), the FourCastNet v2 architecture."},
+  fcn3: {by: "NVIDIA", type: "AI", res: "0.25°", text: "FourCastNet 3."},
+  wrf: {by: "NCAR (community model); run here", type: "Physics, regional", res: "12 km over the US, 45 levels", text: "The Weather Research and Forecasting model (ARW 4.3.3) with the CONUS physics suite, driven by GFS at its boundaries. About 45 minutes on 4 nodes."},
+  cesm: {by: "NCAR (community model); run here", type: "Physics, climate model", res: "1°", text: "CESM2 / CAM6 (iCESM2 with water isotopes), a climate model run in weather-forecast mode with Betacast (Zarzycki & Jablonowski 2015). Its land model is cycled day to day.", ref: "https://github.com/zarzycki/betacast"},
+  e3sm: {by: "US DOE (community model); run here", type: "Physics, climate model", res: "~100 km", text: "E3SM v3 (EAMv3 + ELM), the Department of Energy's climate model, run in forecast mode with Betacast."},
+  icon: {by: "DWD / MPI-M (community model); run here", type: "Physics, global", res: "~40 km", text: "ICON run on Carya from the GFS analysis: the same model family as DWD's, at coarser resolution and without DWD's data assimilation."},
+  mpas: {by: "NCAR (community model); run here", type: "Physics, global", res: "60 km", text: "The Model for Prediction Across Scales (atmosphere), on a variable-resolution Voronoi mesh, run here at a uniform 60 km."},
+};
+function drawGuide() {
+  const box = $("guide"); box.innerHTML = "";
+  for (const g of ["ai", "nwp", "dl"]) {
+    const ms = M.models.filter(m => group(m.id) === g);
+    if (!ms.length) continue;
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>${GROUPS[g].title}</h3><span class="sub">${ms.length} models</span></div>`);
+    const grid = document.createElement("div"); grid.className = "guide";
+    for (const m of ms) {
+      const d = DOCS[m.id] || {by: "", type: m.kind, res: "", text: ""};
+      grid.insertAdjacentHTML("beforeend", `<div class="mcard ${g}" id="doc-${m.id}"><h4><span>${m.name}</span>${badge(m.id)}</h4>
+        <div class="by">${d.by}</div><p>${d.text}${d.ref ? (d.ref.startsWith("#") ? ` <a href="${d.ref}">Scores ↓</a>` : ` <a href="${d.ref}" target="_blank" rel="noopener">Paper ↗</a>`) : ""}</p>
+        <dl><dt>Type</dt><dd>${d.type}</dd>${d.res ? `<dt>Grid</dt><dd>${d.res}</dd>` : ""}</dl></div>`);
+    }
+    box.appendChild(grid);
+  }
+}
+function showDoc(id) {
+  const el = $("doc-" + id); if (!el) return;
+  el.scrollIntoView({behavior: "smooth", block: "center"});
+  el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600);
+}
+
+function drawStats() {
+  const n = g => M.models.filter(m => group(m.id) === g).length;
+  $("stats").innerHTML =
+    `<div class="stat"><div class="n">${M.models.length}</div><div class="t">forecasts compared today</div></div>` +
+    `<div class="stat ai"><div class="n">${n("ai")}</div><div class="t">AI models run here</div></div>` +
+    `<div class="stat nwp"><div class="n">${n("nwp")}</div><div class="t">physics models run on our CPUs</div></div>` +
+    `<div class="stat dl"><div class="n">${n("dl")}</div><div class="t">downloaded from weather centres</div></div>`;
+}
+
+function fmtInit(s) { return new Date(s).toUTCString().replace(":00 GMT", " UTC").replace(":00:00", ":00"); }
+function fmtValid(h) {
+  const t = new Date(new Date(M.init).getTime() + h * 36e5);
+  const utc = t.toUTCString().slice(0, 11) + " " + String(t.getUTCHours()).padStart(2, "0") + " UTC";
+  const loc = t.toLocaleString("en-US", {timeZone: "America/Chicago", hour: "numeric", timeZoneName: "short"});
+  return `+${h} h · ${utc} (${loc})`;
+}
+const H = () => M[mode] || {models: [], fields: {}, spread_fields: [], step_hours: 3};
+const SUB = {hourly: "cities3h.json", hourly1: "cities1h.json"};
+
+async function init() {
+  M = await (await fetch(BASE + "manifest.json", {cache: "no-cache"})).json();
+  CITIES = await (await fetch(BASE + "cities.json", {cache: "no-cache"})).json();
+  for (const [k, f] of Object.entries(SUB))
+    SUBC[k] = await fetch(BASE + f, {cache: "no-cache"}).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  $("meta").textContent = `Forecast start ${fmtInit(M.init)} · updated ${M.generated.replace("T", " ").replace("Z", " UTC")}`;
+  $("footmeta").textContent = `Latest forecast start: ${fmtInit(M.init)}.`;
+  drawStats(); drawGuide();
+  $("mode").querySelectorAll("button").forEach(b => {
+    if (b.dataset.m !== "daily" && !(M[b.dataset.m] && M[b.dataset.m].models.length)) b.style.display = "none"; });
+  $("mode").querySelectorAll("button").forEach(b => b.onclick = () => setMode(b.dataset.m));
+  $("groupf").querySelectorAll("button").forEach(b => b.onclick = () => {
+    groupF = b.dataset.g; $("groupf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); drawGrid(); });
+  $("cgroupf").querySelectorAll("button").forEach(b => b.onclick = () => {
+    cgroupF = b.dataset.g; $("cgroupf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); drawChart(); });
+  $("field").onchange = () => { drawDays(); drawGrid(); };
+  $("spreadOnly").onchange = drawGrid;
+  $("lead").oninput = () => { lead = +$("lead").value; drawGrid(); };
+  $("play").onclick = () => {
+    if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶"; return; }
+    $("play").textContent = "❚❚";
+    timer = setInterval(() => { const n = leads().length; lead = (lead + 1) % n; $("lead").value = lead; drawGrid(); }, 900);
+  };
+  const cs = $("city");
+  Object.keys(M.cities).sort().forEach(c => cs.add(new Option(c, c)));
+  cs.value = "Houston";
+  cs.onchange = drawChart; $("cvar").onchange = drawChart;
+  setMode("daily");
+}
+
+function setMode(m) {
+  mode = m;
+  if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶"; }
+  $("mode").querySelectorAll("button").forEach(b => b.className = b.dataset.m === m ? "on" : "");
+  const fs = $("field"), prev = fs.value; fs.innerHTML = "";
+  const fields = m === "daily" ? M.fields : H().fields;
+  for (const [k, f] of Object.entries(fields))
+    fs.add(new Option(f.label + (f.units ? ` (${f.units})` : ""), k));
+  if ([...fs.options].some(o => o.value === prev)) fs.value = prev;
+  $("days").style.display = m === "daily" ? "" : "none";
+  $("timeline").style.display = m === "daily" ? "none" : "";
+  const st = m === "daily" ? 6 : H().step_hours;
+  $("cityhead").textContent = m === "daily" ? "City forecasts (6-hourly, 7 days)"
+    : `City forecasts (${st === 1 ? "hourly" : st + "-hourly"}, next 48 h)`;
+  const cv = $("cvar");
+  ["6", "3", "1"].forEach(h => cv.querySelector(`[value="precip${h}h"]`).hidden = +h !== st);
+  if (cv.value.startsWith("precip")) cv.value = `precip${st}h`;
+  drawDays(); drawGrid(); drawChart();
+}
+
+function leads() { const f = H().fields[$("field").value]; return f ? f.leads : []; }
+
+function drawDays() {
+  if (mode !== "daily") {
+    const L = leads(); lead = Math.min(lead, L.length - 1);
+    $("lead").max = L.length - 1; $("lead").value = lead;
+    return;
+  }
+  const f = M.fields[$("field").value], box = $("days");
+  box.innerHTML = "";
+  if (f.weekly) { day = 0; return; }
+  if (day < 1) day = 1;
+  M.days.forEach(d => {
+    const b = document.createElement("button");
+    const t = new Date(new Date(M.init).getTime() + (d - 1) * 864e5);  // day N starts N-1 days after init
+    b.textContent = `Day ${d} · ${t.toUTCString().slice(0, 3)}`;
+    b.className = d === day ? "on" : "";
+    b.onclick = () => { day = d; drawDays(); drawGrid(); };
+    box.appendChild(b);
+  });
+}
+
+function makeCard(m, f, key, suffix, hourly) {
+  const g = m.id === "spread" ? "" : group(m.id);
+  const card = document.createElement("div"); card.className = "card " + g; card.id = "card-" + m.id;
+  if (f.models.includes(m.id)) {
+    const img = new Image(); img.loading = hourly ? "eager" : "lazy";
+    img.src = `${BASE}maps/${key}_${m.id}${suffix}.png`; img.alt = `${m.name} ${f.label}`;
+    img.onclick = () => { const z = $("zoom"); z.firstElementChild.src = img.src; z.style.display = "flex"; };
+    img.onerror = () => img.replaceWith(Object.assign(document.createElement("div"),
+      {className: "na", textContent: `${m.name} does not forecast this far ahead.`}));
+    card.appendChild(img);
+  } else if (!hourly && key !== "precip" && M.fields.precip && M.fields.precip.models.includes(m.id)
+             && !Object.entries(M.fields).some(([k, x]) => k !== "precip" && x.models.includes(m.id))) {
+    // precipitation-only model (rainfallAI): point to its rain map instead of a dead card
+    card.innerHTML = `<div class="na">${m.name} forecasts precipitation only.<br><button class="goprecip" style="margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font:inherit">Show its 24 h precipitation map</button></div>`;
+    card.querySelector(".goprecip").onclick = () => { $("field").value = "precip"; drawDays(); drawGrid();
+      const c = document.getElementById("card-" + m.id); if (c) c.scrollIntoView({behavior: "smooth", block: "center"}); };
+  } else {
+    card.innerHTML = `<div class="na">${m.name} does not predict the inputs for this field.</div>`;
+  }
+  const cap = document.createElement("div"); cap.className = "cap";
+  cap.innerHTML = m.id === "spread" ? `<span class="name">${m.name}</span><span class="kind">${m.kind}</span>`
+    : `<span><span class="name">${m.name}</span>${DOCS[m.id] ? `<span class="info" title="What is this model?">i</span>` : ""}</span>${badge(m.id)}`;
+  const info = cap.querySelector(".info"); if (info) info.onclick = () => showDoc(m.id);
+  card.appendChild(cap);
+  return card;
+}
+
+function drawGrid() {
+  const key = $("field").value, hourly = mode !== "daily";
+  const src = hourly ? H() : M, f = src.fields[key];
+  const only = $("spreadOnly").checked;
+  const box = $("grid"); box.innerHTML = "";
+  if (!f) return;
+  const h = hourly ? f.leads[lead] : null;
+  if (hourly) $("leadlab").textContent = fmtValid(h);
+  const suffix = hourly ? `_h${String(h).padStart(2, "0")}` : `_d${day}`;
+  const models = src.models.map(m => ({id: m.id, name: m.name, kind: m.kind}));
+  if (src.spread_fields.includes(key) && (groupF === "all" || only)) {
+    const g = document.createElement("div"); g.className = "grid";
+    g.appendChild(makeCard({id: "spread", name: "Model spread", kind: "std. dev. across all models"}, {models: ["spread"], label: f.label}, key, suffix, hourly));
+    if (only) { box.appendChild(g); return; }
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>Agreement between models</h3><span class="sub">large spread = uncertain forecast</span></div>`);
+    box.appendChild(g);
+  }
+  if (only) return;
+  for (const gk of ["dl", "ai", "nwp"]) {
+    if (groupF !== "all" && groupF !== gk) continue;
+    const ms = models.filter(m => group(m.id) === gk);
+    if (!ms.length) continue;
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>${GROUPS[gk].title}</h3><span class="sub">${ms.length}</span></div>`);
+    const g = document.createElement("div"); g.className = "grid";
+    ms.forEach(m => g.appendChild(makeCard(m, f, key, suffix, hourly)));
+    box.appendChild(g);
+  }
+}
+
+// local-time helpers for the selected city (IANA zone; handles DST and Arizona)
+function local(x, tz) {
+  const p = {};
+  new Intl.DateTimeFormat("en-US", {timeZone: tz, weekday: "short", day: "numeric", month: "short",
+    hour: "numeric", hourCycle: "h23", timeZoneName: "short"}).formatToParts(new Date(x)).forEach(q => p[q.type] = q.value);
+  return p;
+}
+function ampm(h) { return h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`; }
+
+const PALETTE = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#9a6324", "#469990", "#800000",
+  "#808000", "#000075", "#bfef45", "#fabed4", "#dcbeff", "#aaffc3", "#ffd8b1", "#a9a9a9", "#1f77b4", "#ff7f0e", "#2ca02c",
+  "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#ffe119", "#6a3d9a", "#b15928", "#33a02c"];
+
+function drawChart() {
+  const city = $("city").value, v = $("cvar").value, hourly = mode !== "daily";
+  const t0 = new Date(M.init).getTime(), step = (hourly ? H().step_hours : M.series_step_hours) * 36e5;
+  const data = hourly ? SUBC[mode] : CITIES, models = hourly ? H().models : M.models;
+  const datasets = models.map((m, i) => {
+    const s = data[city] && data[city][m.id] && data[city][m.id][v];
+    const g = group(m.id);
+    if (!s || (cgroupF !== "all" && cgroupF !== g)) return null;
+    const c = PALETTE[i % PALETTE.length];
+    return { label: m.name, data: s.map((y, k) => ({x: t0 + k * step, y})), borderColor: c, backgroundColor: c,
+             borderWidth: g === "nwp" ? 3 : 1.7, borderDash: g === "dl" ? [6, 4] : [],
+             pointRadius: hourly ? 2 : 0, tension: .25, spanGaps: true };
+  }).filter(Boolean);
+  if (chart) chart.destroy();
+  const css = getComputedStyle(document.documentElement);
+  const fg = css.getPropertyValue("--muted"), grid = css.getPropertyValue("--line");
+  const tz = (M.cities[city] && M.cities[city].tz) || "UTC";
+  $("tzlab").textContent = `times in ${city} local time (${local(t0, tz).timeZoneName})`;
+  const tick = x => { const p = local(x, tz), hh = +p.hour;
+    return hh === 0 ? `${p.weekday} ${p.day} ${p.month}` : (hourly ? ampm(hh) : ""); };
+  const localTicks = axis => {  // a tick every 6 local hours, labelled at local midnight
+    const out = [];
+    for (let t = Math.ceil(axis.min / 36e5) * 36e5; t <= axis.max; t += 36e5)
+      if (+local(t, tz).hour % 6 === 0) out.push({value: t});
+    axis.ticks = out;
+  };
+  chart = new Chart($("chart"), {
+    type: "line", data: {datasets},
+    options: { maintainAspectRatio: false, interaction: {mode: "index", intersect: false},
+      scales: { x: {type: "linear", afterBuildTicks: localTicks, ticks: {color: fg, callback: tick, autoSkip: false, maxRotation: 0}, grid: {color: grid}},
+                y: {ticks: {color: fg}, grid: {color: grid}} },
+      plugins: { legend: {labels: {color: fg, boxWidth: 12, font: {family: "Inter"}}},
+                 tooltip: {callbacks: {title: it => { const p = local(it[0].parsed.x, tz);
+                   return `${p.weekday} ${p.day} ${p.month}, ${ampm(+p.hour)} ${p.timeZoneName}`; }}}} }
+  });
+  if (!datasets.length) chart.options.plugins.title = {display: true, text: "No model in this group provides this variable", color: fg};
+}
+
+// ---------------------------------------------------------------- verification table
+let V, vvar = "t2m", vrange = "vars";
+async function initVer() {
+  V = await fetch("verification.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!V || !Object.keys(V.vars).length) return;
+  $("versec").style.display = "";
+  $("vermeta").textContent = `Forecast cycles ${V.cycles[0]} to ${V.cycles[V.cycles.length - 1]} (00 UTC) · ` +
+    `${V.n_stations.toLocaleString()} stations · updated ${V.generated.replace("T", " ")}`;
+  const box = $("vervar");
+  for (const [k, v] of Object.entries(V.vars)) {
+    const b = document.createElement("button"); b.textContent = v.label; b.dataset.k = k;
+    b.onclick = () => { vvar = k; drawVer(); }; box.appendChild(b);
+  }
+  if (!V.short) $("verrange").style.display = "none";
+  $("verrange").querySelectorAll("button").forEach(b => b.onclick = () => { vrange = b.dataset.r; drawVer(); });
+  drawVer();
+}
+function drawVer() {
+  const v = (V[vrange] || V.vars)[vvar], u = v.units, f = x => x == null || isNaN(x) ? "–" : x.toFixed(u === "in" ? 2 : u === "°" ? 0 : 1);
+  const f2 = x => x == null || isNaN(x) ? "–" : x.toFixed(2);
+  $("vervar").querySelectorAll("button").forEach(b => b.className = b.dataset.k === vvar ? "on" : "");
+  $("verrange").querySelectorAll("button").forEach(b => b.className = b.dataset.r === vrange ? "on" : "");
+  const days = vrange === "short" ? [1, 2] : [1, 2, 3, 5, 7];
+  const pr = v.metric === "ets", ma = v.metric === "mae";
+  const dayLab = pr ? "ETS" : ma ? "MAE" : "RMSE";
+  let h = `<tr><th>Rank</th><th class="l">Model</th><th class="l">Source</th><th class="l">Type</th>` +
+    (pr ? `<th>ETS ≥${V.wet_threshold_in} in</th><th>ETS ≥${V.heavy_threshold_in} in</th>` : "") +
+    (ma ? `<th>MAE (${u})</th>` : "") + `<th>RMSE (${u})</th><th>Bias (${u})</th>` + (ma ? "" : `<th title="Willmott index of agreement (1 = perfect)">IOA</th>`) +
+    (pr || ma ? "" : `<th>MAE (${u})</th>`) + days.map(d => `<th>Day ${d} ${dayLab}</th>`).join("") + `<th>Cases</th></tr>`;
+  for (const r of v.rows) {
+    const byd = pr ? r.by_day_ets : r.by_day;
+    h += `<tr class="${r.rank <= 3 ? "top" : ""}"><td>${r.rank}</td><td class="l">${r.name}</td><td class="l">${badge(r.id)}</td><td class="l kind">${r.kind}</td>` +
+      (pr ? `<td>${f2(r.ets)}</td><td>${f2(r.ets_heavy)}</td>` : "") + (ma ? `<td>${f(r.mae)}</td>` : "") +
+      `<td>${f(r.rmse)}</td><td>${(r.bias > 0 ? "+" : "") + f(r.bias)}</td>` + (ma ? "" : `<td>${r.ioa == null ? "–" : r.ioa.toFixed(2)}</td>`) +
+      (pr || ma ? "" : `<td>${f(r.mae)}</td>`) + days.map(d => `<td>${pr ? f2(byd[d - 1]) : f(byd[d - 1])}</td>`).join("") +
+      `<td>${r.n.toLocaleString()}</td></tr>`;
+  }
+  $("vertab").innerHTML = h;
+  let note = `${v.n_cases.toLocaleString()} forecast–observation pairs from ${v.n_stations.toLocaleString()} stations` +
+    (pr ? ` (${v.n_obs_wet.toLocaleString()} observed days ≥${V.wet_threshold_in} in, ${v.n_obs_heavy.toLocaleString()} ≥${V.heavy_threshold_in} in; ranked by ETS ≥${V.wet_threshold_in} in).` :
+     ma ? ` (only when the observed wind is ≥${V.dir_min_kt} kt; bias + means the forecast wind is turned clockwise).` : ".");
+  if (v.excluded.length) note += " Not ranked (too few forecasts yet at the common times, 12-hourly output like GenCast, or a limited-area domain covering under 97% of stations), each scored on its own cases: " +
+    v.excluded.map(e => e.rmse == null ? `${e.name} (${Math.round(e.cover * 100)}% coverage)` :
+      `${e.name}: ${ma ? "MAE " + f(e.mae) : "RMSE " + f(e.rmse)} ${u}, bias ${(e.bias > 0 ? "+" : "") + f(e.bias)} ${u} on its own ` +
+      `${e.hours.map(h => String(h).padStart(2, "0")).join("/")} UTC cases (${e.n.toLocaleString()} pairs; ` +
+      `not comparable with the ranking, which includes the 18 UTC afternoon peak)`).join("; ") + ".";
+  $("vernote").textContent = note;
+}
+initVer();
+
+// ---------------------------------------------------------------- weeks 3-6 outlook (pbc/pbc.json, experimental)
+let PB, pweek = 3;
+async function initPBC() {
+  PB = await fetch("pbc/pbc.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!PB || !PB.weeks || !PB.weeks.length) return;
+  $("outlook").style.display = "";
+  $("pbcmeta").textContent = `CFSv2 runs started ${PB.start} (${PB.members} members) · issued ${PB.issued} · observations used up to ${PB.obs_until}`;
+  $("pbcskill").textContent = PB.weeks.map(w => `${w.rpss_cv >= 0 ? "+" : ""}${w.rpss_cv.toFixed(3)} for week ${w.week}`).join(", ");
+  const box = $("pbcweeks");
+  PB.weeks.forEach(w => {
+    const b = document.createElement("button"); b.dataset.w = w.week;
+    b.textContent = `Week ${w.week} · ${w.label}`;
+    b.onclick = () => { pweek = w.week; drawPBC(); }; box.appendChild(b);
+  });
+  pweek = PB.weeks[0].week;
+  drawPBC();
+}
+function drawPBC() {
+  const w = PB.weeks.find(x => x.week === pweek);
+  $("pbcweeks").querySelectorAll("button").forEach(b => b.className = +b.dataset.w === pweek ? "on" : "");
+  const g = $("pbcgrid"); g.innerHTML = "";
+  for (const [k, lab] of [["warm", "Chance of a warmer-than-normal week"], ["cold", "Chance of a colder-than-normal week"]]) {
+    const card = document.createElement("div"); card.className = "card";
+    const img = new Image(); img.src = `pbc/${w.maps[k]}?v=${encodeURIComponent(PB.issued)}`; img.alt = `${lab}, week ${w.week}`;
+    img.onclick = () => { const z = $("zoom"); z.firstElementChild.src = img.src; z.style.display = "flex"; };
+    card.appendChild(img);
+    const cap = document.createElement("div"); cap.className = "cap";
+    cap.innerHTML = `<span class="name">${lab}</span><span class="kind">US mean ${Math.round(100 * w["conus_mean_p_" + k])} % (climatology 40 %)</span>`;
+    card.appendChild(cap); g.appendChild(card);
+  }
+}
+initPBC();
+
+document.getElementById("zoom").onclick = e => e.currentTarget.style.display = "none";
+init().catch(e => document.getElementById("meta").textContent = "Could not load forecast data: " + e);
+</script>
+</body>
+</html>
