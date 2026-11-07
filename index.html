@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US Weather Model Comparison | Hadi Zanganeh Kia</title>
+<meta name="description" content="Every day, 32 weather forecasts for the United States side by side: AI foundation models and physics models run at the University of Houston, and operational forecasts from NOAA, ECMWF and other centres, verified against weather stations.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,600&display=swap" rel="stylesheet">
+<script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  /* ============ design tokens: light "paper" default, dark by system setting or the toggle ============ */
+  :root {
+    --bg:#f7f5f0; --panel:#ffffff; --panel2:#f2efe8; --line:#e2ddd2; --line2:#d3cdc0; --text:#1d232b; --muted:#5d6672; --faint:#8a929c;
+    --accent:#1f4fbf; --accent-bg:rgba(31,79,191,.08); --good:#0f766e; --good-bg:rgba(15,118,110,.16); --bad-bg:rgba(180,83,9,.10);
+    --ai:#6d3fd4; --ai-bg:rgba(109,63,212,.09); --nwp:#0e8a5f; --nwp-bg:rgba(14,138,95,.10); --dl:#b35f0c; --dl-bg:rgba(179,95,12,.10);
+    --gold:#b8860b; --silver:#7d8793; --bronze:#a0522d;
+    --shadow:0 1px 1px rgba(30,25,15,.04), 0 6px 20px rgba(30,25,15,.05);
+    --plate:#0d1420; --serif:"Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg:#0e1217; --panel:#151b23; --panel2:#1a212b; --line:#28313d; --line2:#34404f; --text:#e7ebf0; --muted:#97a2b1; --faint:#6f7a88;
+    --accent:#86acff; --accent-bg:rgba(134,172,255,.12); --good:#4fd1c5; --good-bg:rgba(79,209,197,.17); --bad-bg:rgba(251,146,60,.10);
+    --ai:#b392ff; --ai-bg:rgba(179,146,255,.14); --nwp:#3fcf9a; --nwp-bg:rgba(63,207,154,.13); --dl:#f2a54a; --dl-bg:rgba(242,165,74,.13);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.2); color-scheme:dark; } }
+  :root[data-theme="dark"] {
+    --bg:#0e1217; --panel:#151b23; --panel2:#1a212b; --line:#28313d; --line2:#34404f; --text:#e7ebf0; --muted:#97a2b1; --faint:#6f7a88;
+    --accent:#86acff; --accent-bg:rgba(134,172,255,.12); --good:#4fd1c5; --good-bg:rgba(79,209,197,.17); --bad-bg:rgba(251,146,60,.10);
+    --ai:#b392ff; --ai-bg:rgba(179,146,255,.14); --nwp:#3fcf9a; --nwp-bg:rgba(63,207,154,.13); --dl:#f2a54a; --dl-bg:rgba(242,165,74,.13);
+    --shadow:0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.2); color-scheme:dark; }
+
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; scroll-padding-top:70px; }
+  body { margin:0; font:15.5px/1.6 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text);
+    -webkit-font-smoothing:antialiased; font-feature-settings:"cv11","ss01"; counter-reset:sec; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; text-underline-offset:3px; }
+  .wrap { max-width:1480px; margin:auto; padding:0 32px; }
+  ::selection { background:var(--accent-bg); }
+  button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ============ top bar + reading progress ============ */
+  nav.top { position:sticky; top:0; z-index:10; background:color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter:saturate(1.4) blur(10px); border-bottom:1px solid var(--line); }
+  nav.top .wrap { display:flex; align-items:center; gap:24px; height:58px; }
+  nav.top .brand { font-family:var(--serif); font-weight:700; font-size:1.08rem; letter-spacing:-.01em; color:var(--text); white-space:nowrap; display:flex; align-items:center; gap:9px; }
+  nav.top .brand .dot { width:9px; height:9px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 0 rgba(34,197,94,.6); animation:pulse 2.4s infinite; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(34,197,94,.55); } 70% { box-shadow:0 0 0 8px rgba(34,197,94,0); } 100% { box-shadow:0 0 0 0 rgba(34,197,94,0); } }
+  nav.top .links { display:flex; gap:4px; font-size:.86rem; overflow-x:auto; scrollbar-width:none; }
+  nav.top .links a { color:var(--muted); white-space:nowrap; padding:6px 10px; border-radius:7px; }
+  nav.top .links a:hover { color:var(--text); background:var(--panel2); text-decoration:none; }
+  nav.top .links a.on { color:var(--text); background:var(--panel2); font-weight:600; }
+  nav.top .home { margin-left:auto; font-size:.84rem; white-space:nowrap; color:var(--muted); }
+  .themebtn { background:none; border:1px solid var(--line); color:var(--muted); border-radius:8px; width:34px; height:32px; cursor:pointer; font-size:1rem; line-height:1; flex:none; }
+  .themebtn:hover { color:var(--text); border-color:var(--line2); }
+  #progress { position:absolute; left:0; bottom:-1px; height:2px; width:0; background:linear-gradient(90deg, var(--ai), var(--accent), var(--nwp)); }
+
+  /* ============ page layout: contents rail on wide screens ============ */
+  .layout { display:block; }
+  aside.toc { display:none; }
+  @media (min-width:1320px) {
+    .layout { display:grid; grid-template-columns:186px minmax(0,1fr); gap:44px; }
+    aside.toc { display:block; position:sticky; top:84px; align-self:start; padding-top:42px; font-size:.84rem; }
+    aside.toc .ttl { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:600; margin-bottom:10px; }
+    aside.toc a { display:flex; gap:10px; color:var(--muted); padding:5px 0 5px 12px; border-left:2px solid var(--line); line-height:1.35; }
+    aside.toc a span { color:var(--faint); font-variant-numeric:tabular-nums; min-width:18px; }
+    aside.toc a:hover { color:var(--text); text-decoration:none; border-left-color:var(--line2); }
+    aside.toc a.on { color:var(--text); border-left-color:var(--accent); font-weight:600; }
+    aside.toc a.on span { color:var(--accent); }
+  }
+
+  /* ============ hero ============ */
+  header.hero { padding:40px 0 8px; }
+  .herogrid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.08fr); gap:36px; align-items:center; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:.72rem; font-weight:600; color:var(--accent); display:flex; gap:8px; align-items:center; }
+  h1 { font-family:var(--serif); margin:10px 0 14px; font-size:2.65rem; line-height:1.12; letter-spacing:-.022em; font-weight:700; }
+  h1 em { font-style:italic; color:var(--accent); font-weight:600; }
+  .lead { color:var(--muted); max-width:640px; font-size:1.06rem; margin:0; line-height:1.65; }
+  .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin-top:26px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .stat { padding:14px 14px 12px 0; }
+  .stat + .stat { padding-left:16px; border-left:1px solid var(--line); }
+  .stat .n { font-family:var(--serif); font-size:2rem; font-weight:700; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:lining-nums tabular-nums; }
+  .stat .t { color:var(--muted); font-size:.8rem; line-height:1.35; margin-top:3px; }
+  .stat.ai .n { color:var(--ai); } .stat.nwp .n { color:var(--nwp); } .stat.dl .n { color:var(--dl); }
+  .meta { color:var(--muted); font-size:.85rem; margin-top:14px; }
+
+  figure { margin:0; }
+  figcaption, .figcap { color:var(--muted); font-size:.84rem; line-height:1.5; margin-top:9px; }
+  figcaption b, .figcap b { color:var(--text); font-weight:600; }
+  .herofig .windbox { position:relative; aspect-ratio:1.62; background:radial-gradient(120% 90% at 50% 40%, #13213a 0%, var(--plate) 70%); border-radius:16px; overflow:hidden;
+    box-shadow:0 20px 50px -20px rgba(10,20,40,.55), inset 0 0 0 1px rgba(255,255,255,.06); }
+  .windbox canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .wlabel { position:absolute; left:14px; top:12px; color:#e8eef8; font-size:.8rem; background:rgba(8,14,24,.55); backdrop-filter:blur(4px); padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.1); }
+  .wchips { position:absolute; right:12px; top:10px; display:flex; gap:4px; }
+  .wchips button { background:rgba(8,14,24,.55); color:#cfd8e6; border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:3px 10px; font:inherit; font-size:.74rem; cursor:pointer; }
+  .wchips button.on { background:#e8eef8; color:#0d1420; border-color:#e8eef8; font-weight:600; }
+  .wleg { position:absolute; left:14px; right:14px; bottom:12px; display:flex; align-items:center; gap:8px; color:#cfd8e6; font-size:.72rem; }
+  .wleg .bar { flex:1; max-width:240px; height:6px; border-radius:3px; }
+
+  /* at-a-glance leaderboard */
+  .glance { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-top:34px; }
+  .gcard { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px 12px; box-shadow:var(--shadow); cursor:pointer; transition:border-color .15s, transform .15s; }
+  .gcard:hover { border-color:var(--line2); transform:translateY(-2px); }
+  .gcard .gh { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
+  .gcard .gh b { font-size:.9rem; } .gcard .gh span { color:var(--faint); font-size:.72rem; white-space:nowrap; }
+  .grow { display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:8px; align-items:center; font-size:.8rem; padding:3px 0; }
+  .grow .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .grow .vl { font-variant-numeric:tabular-nums; color:var(--muted); font-size:.78rem; }
+  .grow .bar { grid-column:2 / 4; height:4px; border-radius:2px; background:var(--panel2); margin-top:-1px; overflow:hidden; }
+  .grow .bar i { display:block; height:100%; border-radius:2px; }
+  .gcard .gfoot { margin-top:8px; padding-top:7px; border-top:1px dashed var(--line); color:var(--muted); font-size:.76rem; }
+  .medal { width:18px; height:18px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.66rem; font-weight:700; color:#fff; background:var(--faint); font-variant-numeric:tabular-nums; }
+  .medal.m1 { background:var(--gold); } .medal.m2 { background:var(--silver); } .medal.m3 { background:var(--bronze); }
+
+  /* ============ badges ============ */
+  .badge { font-family:Inter,system-ui,sans-serif; display:inline-flex; align-items:center; gap:5px; font-size:.7rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; letter-spacing:.01em; }
+  .badge::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .badge.ai { color:var(--ai); background:var(--ai-bg); } .badge.nwp { color:var(--nwp); background:var(--nwp-bg); } .badge.dl { color:var(--dl); background:var(--dl-bg); }
+
+  /* ============ sections: numbered like a paper ============ */
+  section.block { margin-top:56px; padding-top:34px; border-top:1px solid var(--line); counter-increment:sec; }
+  section.block > h2 { font-family:var(--serif); font-size:1.85rem; line-height:1.2; margin:0 0 8px; letter-spacing:-.015em; font-weight:700; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  section.block > h2::before { content:counter(sec, decimal-leading-zero); font-family:Inter,system-ui,sans-serif; font-size:.8rem; font-weight:600; color:var(--accent);
+    letter-spacing:.06em; border:1px solid var(--accent); border-radius:6px; padding:1px 6px; transform:translateY(-6px); }
+  h2 { font-family:var(--serif); font-size:1.5rem; margin:0 0 4px; letter-spacing:-.01em; }
+  h3 { font-family:var(--serif); font-weight:600; }
+  .sub { color:var(--muted); font-size:.92rem; max-width:980px; }
+  .controls { position:sticky; top:58px; z-index:5; background:color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter:blur(8px); padding:12px 0; margin-top:10px;
+    display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; border-bottom:1px solid var(--line); }
+  .controls.static { position:static; border:0; padding-top:8px; background:none; backdrop-filter:none; }
+  label { font-size:.84rem; color:var(--muted); display:flex; align-items:center; gap:7px; }
+  select, input[type=range] { background:var(--panel); color:var(--text); border:1px solid var(--line2); border-radius:8px; padding:6px 9px; font:inherit; font-size:.87rem; }
+  input[type=range] { accent-color:var(--accent); }
+  .seg { display:inline-flex; gap:2px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:3px; }
+  .seg button { background:transparent; color:var(--muted); border:0; border-radius:7px; padding:5px 11px; cursor:pointer; font:inherit; font-size:.83rem; font-weight:500; transition:background .12s, color .12s; }
+  .seg button:hover { color:var(--text); }
+  .seg button.on { background:var(--panel); color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.12), 0 0 0 1px var(--line); }
+  .seg button.f-ai.on { color:var(--ai); } .seg button.f-nwp.on { color:var(--nwp); } .seg button.f-dl.on { color:var(--dl); }
+  .tl { display:flex; align-items:center; gap:8px; font-size:.86rem; }
+  .tl input[type=range] { width:260px; padding:0; }
+  .tl button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:5px 12px; cursor:pointer; }
+  #leadlab { min-width:250px; font-variant-numeric:tabular-nums; }
+
+  .grouphead { display:flex; align-items:baseline; gap:10px; margin:26px 0 2px; padding-bottom:6px; border-bottom:1px dashed var(--line); }
+  .grouphead h3 { margin:0; font-size:1.08rem; }
+  .grouphead .sub { font-size:.82rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:16px; margin-top:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); transition:transform .15s ease, box-shadow .15s ease; position:relative; }
+  .card:hover { transform:translateY(-2px); box-shadow:0 2px 4px rgba(0,0,0,.06), 0 14px 30px rgba(0,0,0,.09); }
+  .card::before { content:""; position:absolute; left:0; top:0; right:0; height:3px; background:transparent; z-index:1; }
+  .card.ai::before { background:var(--ai); } .card.nwp::before { background:var(--nwp); } .card.dl::before { background:var(--dl); }
+  .card img { width:100%; display:block; background:#fff; cursor:zoom-in; }
+  .card .cap { padding:9px 13px; font-size:.84rem; display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid var(--line); }
+  .card .cap .name { font-weight:600; }
+  .card .cap .info { font-size:.72rem; color:var(--muted); cursor:pointer; border:1px solid var(--line2); border-radius:999px; padding:0 7px; margin-left:7px; font-style:italic; font-family:var(--serif); }
+  .card .cap .info:hover { color:var(--accent); border-color:var(--accent); }
+  .kind { color:var(--muted); }
+  .na { padding:48px 14px; text-align:center; color:var(--muted); font-size:.88rem; background:repeating-linear-gradient(135deg, var(--panel2) 0 10px, var(--panel) 10px 20px); }
+
+  .chartbox { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; height:440px; box-shadow:var(--shadow); }
+
+  /* ============ tables: journal style + scorecard shading ============ */
+  table.ver { width:100%; border-collapse:collapse; font-size:.86rem; background:var(--panel); font-variant-numeric:tabular-nums; }
+  table.ver th, table.ver td { padding:8px 11px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  table.ver th { color:var(--muted); font-weight:600; font-size:.76rem; letter-spacing:.02em; background:var(--panel2); position:sticky; top:0; border-bottom:1.5px solid var(--line2); }
+  table.ver td.l, table.ver th.l { text-align:left; }
+  table.ver tr.top td { font-weight:600; }
+  table.ver tr:hover td { background:var(--accent-bg); }
+  table.ver td.kind { white-space:normal; min-width:150px; max-width:240px; line-height:1.35; font-size:.82rem; }
+  table.ver td.best { font-weight:700; color:var(--good); }
+  table.ver tr.ours td:nth-child(2) { font-weight:700; }
+  table.ver tr.ours td:first-child { box-shadow:inset 3px 0 0 var(--ai); }
+  .rk { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center; font-size:.74rem; font-weight:700; color:var(--muted); }
+  .rk.m1 { background:var(--gold); color:#fff; } .rk.m2 { background:var(--silver); color:#fff; } .rk.m3 { background:var(--bronze); color:#fff; }
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); background:var(--panel); }
+  .notes { color:var(--muted); font-size:.88rem; max-width:1060px; }
+  .notes li { margin:7px 0; }
+  .shadekey { display:inline-flex; align-items:center; gap:6px; font-size:.76rem; color:var(--muted); margin-left:auto; }
+  .shadekey i { width:44px; height:9px; border-radius:3px; background:linear-gradient(90deg, var(--bad-bg), transparent 45%, var(--good-bg)); border:1px solid var(--line); }
+
+  /* ============ model guide ============ */
+  .guide { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; margin-top:12px; }
+  .mcard { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:15px 17px; box-shadow:var(--shadow); }
+  .mcard.ai { border-left:3px solid var(--ai); } .mcard.nwp { border-left:3px solid var(--nwp); } .mcard.dl { border-left:3px solid var(--dl); }
+  .mcard h4 { margin:0 0 3px; font-size:1rem; font-family:var(--serif); display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .mcard .by { color:var(--muted); font-size:.8rem; margin-bottom:6px; }
+  .mcard p { margin:6px 0 0; font-size:.86rem; line-height:1.55; }
+  .mcard dl { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; margin:10px 0 0; font-size:.79rem; padding-top:8px; border-top:1px solid var(--line); }
+  .mcard dt { color:var(--faint); } .mcard dd { margin:0; }
+  .mcard.flash { outline:2px solid var(--accent); }
+  .legend3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-top:14px; }
+  .legend3 > div { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; font-size:.87rem; box-shadow:var(--shadow); }
+
+  /* ============ footer: cite this page ============ */
+  footer { margin-top:64px; border-top:1px solid var(--line); padding:26px 0 48px; color:var(--muted); font-size:.85rem; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; }
+  .cite { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:.82rem; }
+  .cite .ct { font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+  .cite p { margin:6px 0 0; color:var(--text); font-family:var(--serif); font-size:.92rem; line-height:1.5; }
+  .cite button { background:none; border:1px solid var(--line2); color:var(--muted); border-radius:6px; padding:2px 8px; font:inherit; font-size:.72rem; cursor:pointer; letter-spacing:0; text-transform:none; }
+  #zoom { position:fixed; inset:0; background:rgba(5,8,14,.88); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:20; cursor:zoom-out; }
+  #zoom img { max-width:95vw; max-height:95vh; background:#fff; border-radius:10px; box-shadow:0 30px 80px rgba(0,0,0,.5); }
+
+  /* ============ state animation ============ */
+  .stwrap { display:grid; grid-template-columns:minmax(260px,360px) 1fr; gap:22px; align-items:start; margin-top:14px; }
+  .stpick { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px; box-shadow:var(--shadow); }
+  .stpick svg { width:100%; height:auto; display:block; }
+  .stpick path.st { fill:var(--panel2); stroke:var(--line2); stroke-width:.6; cursor:pointer; transition:fill .15s; }
+  .stpick path.st:hover { fill:color-mix(in srgb, var(--accent) 30%, var(--panel2)); }
+  .stpick path.st.sel { fill:var(--accent); }
+  .stpick label { display:flex; margin-top:10px; font-size:.86rem; color:var(--muted); }
+  .stpick .hint { font-size:.76rem; color:var(--faint); margin-top:8px; }
+  .stbar { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin-bottom:10px; }
+  .stbtn { background:var(--accent); color:#fff; border:0; border-radius:9px; padding:6px 15px; font:inherit; font-size:.85rem; font-weight:600; cursor:pointer; min-width:96px; }
+  .stcanvas { position:relative; background:var(--plate); border-radius:14px; box-shadow:0 18px 40px -22px rgba(10,20,40,.6); overflow:hidden; height:420px; transition:height .2s; }
+  .stcanvas canvas { position:absolute; left:0; top:0; }
+  .sttime { position:absolute; left:12px; top:10px; color:#e8eef8; background:rgba(8,14,24,.6); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.1); border-radius:999px; padding:3px 11px; font-size:.84rem; font-variant-numeric:tabular-nums; }
+  .sttip { position:absolute; display:none; pointer-events:none; background:#0b1220e6; color:#fff; border-radius:6px; padding:2px 8px; font-size:.8rem; font-weight:600; white-space:nowrap; }
+  .stmsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9fb0c8; }
+  #stslider { width:100%; margin:12px 0 6px; padding:0; border:0; background:none; }
+  .stdays { display:flex; gap:6px; flex-wrap:wrap; }
+  .stdays button { flex:1; min-width:58px; background:var(--panel); color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:4px 6px; font:inherit; font-size:.79rem; cursor:pointer; }
+  .stdays button.on { border-color:var(--accent); color:var(--accent); font-weight:600; background:var(--accent-bg); }
+  .stcbar { margin-top:14px; max-width:640px; }
+  .stgrad { height:10px; border-radius:5px; }
+  .stticks { position:relative; height:18px; font-size:.74rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .stticks span { position:absolute; transform:translateX(-50%); top:2px; }
+
+  @media (max-width:1100px) { .herogrid { grid-template-columns:1fr; } .glance { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:860px) { .stwrap { grid-template-columns:1fr; } .stpick { max-width:440px; } footer { grid-template-columns:1fr; } }
+  @media (max-width:640px) { .wrap { padding:0 16px; } h1 { font-size:1.85rem; } section.block > h2 { font-size:1.45rem; } .grid { grid-template-columns:1fr; }
+    nav.top .home { display:none; } nav.top .wrap { flex-wrap:wrap; height:auto; gap:4px 12px; padding-top:8px; }
+    nav.top .links { order:3; width:100%; padding-bottom:6px; } nav.top .themebtn { margin-left:auto; }
+    .wchips { top:auto; bottom:30px; right:10px; } .wlabel { font-size:.74rem; } .stats { grid-template-columns:repeat(2,1fr); } .stat:nth-child(3) { border-left:0; padding-left:0; }
+    .glance { grid-template-columns:1fr; } .tl input[type=range] { width:160px; } #leadlab { min-width:0; } }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } .card, .gcard { transition:none; } nav.top .brand .dot { animation:none; } }
+  /* ============ hero v2: text + stats on top, Figure 1 (three synced panels) below ============ */
+  .herotop { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:44px; align-items:end; }
+  .heroside .stats { margin-top:0; }
+  .fig1 { margin-top:30px; background:var(--plate); border-radius:18px; padding:14px 16px 16px; box-shadow:0 24px 60px -28px rgba(10,20,40,.65), inset 0 0 0 1px rgba(255,255,255,.05); color:#dfe7f3; }
+  .fig1 figcaption { color:#9fb0c8; font-size:.82rem; margin-top:12px; max-width:1150px; }
+  .fig1 figcaption b { color:#e8eef8; } .fig1 figcaption a { color:#9cc0ff; }
+  .f1bar { display:flex; align-items:center; gap:16px; padding:2px 2px 12px; }
+  .f1play { flex:none; width:40px; height:40px; border-radius:50%; border:0; background:#e8eef8; color:#0d1420; font-size:.9rem; cursor:pointer; box-shadow:0 0 0 4px rgba(232,238,248,.12); }
+  .f1time { flex:none; min-width:220px; display:flex; flex-direction:column; line-height:1.25; }
+  .f1time b { font-family:var(--serif); font-size:1.15rem; color:#f3f6fb; font-weight:600; font-variant-numeric:tabular-nums; }
+  .f1time span { font-size:.76rem; color:#8fa1ba; font-variant-numeric:tabular-nums; }
+  .f1track { flex:1; min-width:0; }
+  .f1track input { width:100%; margin:0; accent-color:#9cc0ff; background:none; border:0; padding:0; }
+  .f1days { position:relative; height:16px; font-size:.7rem; color:#8fa1ba; }
+  .f1days span { position:absolute; transform:translateX(-50%); white-space:nowrap; cursor:pointer; }
+  .f1days span:hover { color:#e8eef8; }
+  .panels { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+  .panel { min-width:0; }
+  .ptitle { font-size:.8rem; color:#cfd8e6; margin:0 0 6px 2px; display:flex; align-items:center; gap:7px; white-space:nowrap; overflow:hidden; }
+  .ptitle .pl { font-family:var(--serif); font-weight:700; font-style:italic; color:#fff; font-size:.95rem; }
+  .psrc { margin-left:auto; font-size:.68rem; padding:1px 8px; border-radius:999px; background:rgba(255,255,255,.08); color:#b9c6d8; }
+  .psrc.ours { background:rgba(179,146,255,.22); color:#dccbff; }
+  .pbox { position:relative; aspect-ratio:1.6; border-radius:12px; overflow:hidden; background:radial-gradient(120% 90% at 50% 40%, #13213a 0%, #0a111c 75%); }
+  .pbox canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .pmsg { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:20px; color:#9fb0c8; font-size:.84rem; }
+  .pleg { display:flex; align-items:center; gap:8px; color:#9fb0c8; font-size:.7rem; margin-top:7px; height:26px; }
+  .pleg .bar { flex:1; height:6px; border-radius:3px; }
+  .spark { display:block; width:100%; height:30px; margin-top:7px; }
+  .f1leg { display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-top:8px; }
+  .f1leg .rlab { font-size:.72rem; color:#9fb0c8; white-space:nowrap; }
+  .rleg { width:min(560px, 66%); padding:0 10px; }
+  .rleg .bar { height:7px; border-radius:4px; }
+  .rleg .ticks { position:relative; height:14px; font-size:.66rem; color:#9fb0c8; font-variant-numeric:tabular-nums; }
+  .rleg .ticks span { position:absolute; transform:translateX(-50%); top:1px; }
+  @media (max-width:1100px) { .herotop { grid-template-columns:1fr; gap:22px; } }
+  @media (max-width:900px) { .panels { grid-template-columns:1fr; } .f1time { min-width:0; } .f1bar { flex-wrap:wrap; } .f1track { flex-basis:100%; } .rleg { width:100%; } .f1leg { flex-direction:column; align-items:stretch; gap:2px; } }
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <span class="brand"><span class="dot" title="Updated daily"></span>US Forecast Comparison</span>
+  <div class="links"><a href="#maps">Maps</a><a href="#versec">Accuracy</a><a href="#cities">Cities</a><a href="#states">States</a><a href="#outlook">Weeks 3–6</a><a href="#rainai">rainfallAI</a><a href="#s2s">4 weeks</a><a href="#models">Models</a><a href="#about">Methods</a></div>
+  <a class="home" href="https://hadizkia.github.io/">← hadizkia.github.io</a>
+  <button class="themebtn" id="themebtn" type="button" aria-label="Switch colour theme">☾</button>
+</div><div id="progress"></div></nav>
+
+<div class="wrap layout">
+<aside class="toc" id="toc" aria-label="Contents"></aside>
+<div class="content">
+<header class="hero">
+  <div class="herotop">
+    <div class="herotext">
+      <div class="eyebrow">Daily · contiguous United States · open research</div>
+      <h1>AI and physics weather models, <em>side by side</em></h1>
+      <p class="lead">Every day the same forecast start time is run through AI weather foundation models and physics models on the
+        University of Houston's computing cluster, and compared with the operational forecasts of NOAA, ECMWF and other weather
+        centres. Every forecast is then checked against thousands of weather stations.</p>
+    </div>
+    <div class="heroside">
+      <div class="stats" id="stats"></div>
+      <div class="meta" id="meta">Loading…</div>
+    </div>
+  </div>
+  <figure class="fig1" id="herofig">
+    <div class="f1bar">
+      <button class="f1play" id="f1play" type="button" aria-label="Pause">❚❚</button>
+      <div class="f1time"><b id="f1when">Loading…</b><span id="f1lead"></span></div>
+      <div class="f1track"><input type="range" id="f1slider" min="0" max="168" step="1" value="6" aria-label="Forecast hour"><div class="f1days" id="f1days"></div></div>
+    </div>
+    <div class="panels">
+      <div class="panel"><div class="ptitle"><span class="pl">a</span>Wind 10 m above ground <span class="psrc">NOAA GFS</span></div>
+        <div class="pbox" id="windbox"><canvas id="wbg"></canvas><canvas id="wpt"></canvas><div class="pmsg" id="wmsg"></div></div>
+        <div class="pleg"><span>calm</span><span class="bar" id="wlegbar"></span><span>50+ mph</span></div></div>
+      <div class="panel"><div class="ptitle"><span class="pl">b</span>Rain, 6-hour total <span class="psrc">NOAA GFS</span></div>
+        <div class="pbox" id="rbox_gfs"><canvas id="rc_gfs"></canvas><div class="pmsg" id="rmsg_gfs"></div></div>
+        <canvas class="spark" id="sp_gfs" aria-label="US-average rain over the 7 days, GFS"></canvas></div>
+      <div class="panel"><div class="ptitle"><span class="pl">c</span>Rain, 6-hour total <span class="psrc ours">rainfallAI · ours</span></div>
+        <div class="pbox" id="rbox_ai"><canvas id="rc_ai"></canvas><div class="pmsg" id="rmsg_ai"></div></div>
+        <canvas class="spark" id="sp_ai" aria-label="US-average rain over the 7 days, rainfallAI"></canvas></div>
+    </div>
+    <div class="f1leg"><span class="rlab">Rain in 6 h (in)</span><div class="rleg"><div class="bar" id="rlegbar"></div><div class="ticks" id="rlegticks"></div></div></div>
+    <figcaption><b>Figure 1.</b> The next 7 days from today's 00 UTC start, played together. <b>(a)</b> Wind 10 m above the ground from NOAA GFS:
+      each streak follows the wind, colour shows its speed. <b>(b)</b> Rain in the 6 hours ending at the time shown, NOAA GFS. <b>(c)</b> The same for
+      rainfallAI, our model trained on observed rain, which turns GFS, the ECMWF and NOAA ensembles and other physics forecasts into rain amounts (its daily
+      totals are split into 6-hour steps with the National Blend's timing). Both rain maps use the same 0.25° grid and colours; the strip under each shows the
+      US-average rain over the week, with the current time marked. Frames in between 6-hourly steps are blended. Hourly animations for each state are in
+      <a href="#states">State animation</a>.</figcaption>
+  </figure>
+  <div class="glance" id="glance" aria-label="Most accurate models last week"></div>
+</header>
+
+<main>
+  <section class="block" id="maps">
+    <h2>Forecast maps</h2>
+    <div class="sub">Click a map to enlarge it. Colours mark where each forecast comes from.</div>
+    <div class="controls">
+      <div class="seg" id="mode">
+        <button data-m="daily" class="on">7 days (daily)</button>
+        <button data-m="hourly">Next 48 h (3-hourly)</button>
+        <button data-m="hourly1">Next 48 h (hourly)</button>
+      </div>
+      <label>Field <select id="field"></select></label>
+      <div class="seg" id="days"></div>
+      <div class="tl" id="timeline" style="display:none">
+        <button id="play" title="Play / pause">▶</button>
+        <input type="range" id="lead" min="0" value="0" step="1">
+        <span id="leadlab"></span>
+      </div>
+      <div class="seg" id="groupf">
+        <button data-g="all" class="on">All</button>
+        <button data-g="ai" class="f-ai">AI · run here</button>
+        <button data-g="nwp" class="f-nwp">Physics · run here</button>
+        <button data-g="dl" class="f-dl">Downloaded</button>
+      </div>
+      <label><input type="checkbox" id="spreadOnly"> spread only</label>
+    </div>
+    <div id="grid"></div>
+  </section>
+
+  <section class="block" id="versec" style="display:none">
+    <h2>How accurate were the models last week?</h2>
+    <div class="sub" id="vermeta"></div>
+    <div class="controls static">
+      <div class="seg" id="vervar"></div>
+      <div class="seg" id="verrange">
+        <button data-r="vars" class="on">All lead days (7-day models)</button>
+        <button data-r="short">Days 1–2 (adds HRRR, NAM)</button>
+        <button data-r="syn12">00 and 12 UTC only (adds GenCast)</button>
+      </div>
+      <div class="seg" id="vergrp">
+        <button data-g="all" class="on">All models</button>
+        <button data-g="raw">Single forecasts</button>
+        <button data-g="ens">Ensemble means</button>
+        <button data-g="post">Post-processed</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="ver" id="vertab"></table></div>
+    <div class="notes" id="vernote" style="margin-top:8px"></div>
+  </section>
+
+  <section class="block" id="cities">
+    <h2 id="cityhead">City forecasts (6-hourly, 7 days)</h2>
+    <div class="controls static">
+      <label>City <select id="city"></select></label>
+      <span class="kind" id="tzlab"></span>
+      <label>Variable <select id="cvar">
+        <option value="t2m">2 m temperature (°F)</option>
+        <option value="wind">10 m wind speed (mph)</option>
+        <option value="rh">2 m relative humidity (%)</option>
+        <option value="precip6h">6 h precipitation (in)</option>
+        <option value="precip3h">3 h precipitation (in)</option>
+        <option value="precip1h">1 h precipitation (in)</option>
+      </select></label>
+      <div class="seg" id="cview" title="Consensus: median of all models with the range of the middle 80 %">
+        <button data-v="band" class="on">Consensus</button><button data-v="all">Every model</button>
+      </div>
+      <div class="seg" id="cgroupf">
+        <button data-g="all" class="on">All</button>
+        <button data-g="ai" class="f-ai">AI · run here</button>
+        <button data-g="nwp" class="f-nwp">Physics · run here</button>
+        <button data-g="dl" class="f-dl">Downloaded</button>
+      </div>
+    </div>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="figcap" id="ccap"></div>
+  </section>
+
+  <section class="block" id="states">
+    <h2>State animation (hourly, 7 days)</h2>
+    <p class="sub" id="stsub">Pick a state on the map to watch the next 7 days hour by hour.</p>
+    <div class="stwrap">
+      <div class="stpick">
+        <svg id="usmap" viewBox="0 0 480 300" role="img" aria-label="Map of US states, click one to animate"></svg>
+        <label>State <select id="stsel"></select></label>
+        <div class="hint">Tip: wind shows moving streaks that follow the forecast wind.</div>
+      </div>
+      <div class="stview">
+        <div class="stbar">
+          <div class="seg" id="stvar">
+            <button data-v="t2m" class="on">Temperature</button>
+            <button data-v="precip">Rain rate</button>
+            <button data-v="wind">Wind</button>
+          </div>
+          <button id="stplay" class="stbtn" aria-label="Play">▶ Play</button>
+          <label class="sub">Speed <select id="stspeed"><option value="2">slow</option><option value="4" selected>normal</option><option value="9">fast</option></select></label>
+        </div>
+        <div class="stcanvas" id="stbox">
+          <canvas id="stcan"></canvas><canvas id="stpt"></canvas><canvas id="stov"></canvas>
+          <div class="sttime" id="sttime"></div><div class="sttip" id="sttip"></div>
+          <div class="stmsg" id="stmsg">Loading…</div>
+        </div>
+        <input type="range" id="stslider" min="0" max="168" step="1" value="0" aria-label="Forecast hour">
+        <div class="stdays" id="stdays"></div>
+        <div class="stcbar"><div class="stgrad" id="stgrad"></div><div class="stticks" id="stticks"></div><div class="sub" id="stunits"></div></div>
+      </div>
+    </div>
+    <div class="sub" style="margin-top:8px">NOAA GFS 0.25° from the latest 00 UTC run: every hour to 5 days, then every 3 hours (the frames in between are blended, marked “blended”).
+      Rain rate is the GFS rain over each hour (3 hours after day 5), in inches per hour. Times are local to the state. Hover the map to read values.</div>
+  </section>
+
+  <section class="block" id="outlook" style="display:none">
+    <h2>Weeks 3–6 temperature outlook <span class="badge dl" style="vertical-align:middle">experimental</span></h2>
+    <div class="sub" id="pbcmeta"></div>
+    <div class="controls static"><div class="seg" id="pbcweeks"></div></div>
+    <div class="grid" id="pbcgrid"></div>
+    <div class="notes" style="margin-top:10px">
+      <p style="margin:0 0 6px">How likely is each week to be <b>warmer</b> or <b>colder than normal</b>? "Normal" is the 1991–2020
+      climate of that place and time of year (CPC station analysis): a week counts as warmer than normal if its mean temperature is
+      in the warmest 40 % of past weeks, colder if in the coldest 40 %, so with no forecast information both chances would be 40 %.</p>
+      <p style="margin:0 0 6px">Method: the 16 runs of NOAA's CFSv2 seasonal model started on the date shown (4 runs at each of
+      00/06/12/18 UTC) are statistically corrected with a probabilistic bias correction in the spirit of Microsoft's PBC
+      (Guan et al. 2026): for each 1° grid cell and week, the observed outcome is regressed on the ensemble-mean forecast over
+      seven years of past CFSv2 forecasts (2019–2026) from the same time of year.</p>
+      <p style="margin:0">Skill is modest, as for all forecasts this far ahead: in leave-one-year-out cross-validation over 902 past
+      forecasts the ranked probability skill score against climatology is <span id="pbcskill"></span> (0 = no better than
+      climatology, 1 = perfect). Part of the skill comes from the warming trend since 1991–2020. Rainfall at these lead times showed
+      almost no skill, so it is not shown.</p>
+    </div>
+  </section>
+
+  <section class="block" id="rainai">
+    <h2>rainfallAI: our observation-trained rain model <span class="badge ai" style="vertical-align:middle">runs daily · experimental</span></h2>
+    <div class="sub">A deep-learning model built here that turns the physics forecasts of GFS, GEFS, NBM, HRRR, ECMWF IFS and the ECMWF ensemble into
+      daily rain amounts for days 1–7 (since 4 Nov 2026 calibrated on rain gauges as well as the radar grid; the test table below used the earlier, wetter rule), trained only against observed rain (NOAA MRMS radar + gauge, 2021–2025; NOAA AORC for 2000–2019 with the GEFS reforecast).</div>
+    <h3 style="margin:16px 0 4px;font-size:1rem" id="r7head">Test period: 38 seven-day forecasts, 1 July – 20 October 2026</h3>
+    <div class="sub">Daily rain at lead days 1–7 verified against NOAA MRMS (0.1° grid, contiguous US), all models on identical days and
+      grid cells (every third day, because GraphCast and FuXi were re-run for this period). Mean over the 7 lead days; best in bold. For this long-term comparison GraphCast and FuXi start from the data each was trained on (ECMWF IFS analysis, ERA5); started from GFS, as in the daily forecasts above, they score lower (ETS ≥0.1 in: GraphCast 0.256, FuXi 0.265).</div>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="r7tab">
+      <tr><th>Rank (ETS)</th><th class="l">Model</th><th class="l">Source</th><th>ETS ≥0.1 in ↑</th><th>ETS ≥1 in ↑</th><th>SEEPS ↓</th><th>IOA ↑</th><th>MAE (mm) ↓</th><th>Rain-day bias (1 = right)</th></tr>
+      <tr><td>1</td><td class="l">rainfallAI (ensemble)</td><td class="l"><span class="badge ai">AI · run here</span></td><td><b>0.353</b></td><td><b>0.166</b></td><td><b>0.528</b></td><td><b>0.690</b></td><td><b>2.10</b></td><td>1.40</td></tr>
+      <tr><td>2</td><td class="l">Statistical post-processing (our baseline)</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.296</td><td>0.152</td><td>0.640</td><td>0.623</td><td>2.30</td><td><b>0.90</b></td></tr>
+      <tr><td>3</td><td class="l">ECMWF AIFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.295</td><td>0.144</td><td>0.554</td><td>0.674</td><td>2.42</td><td>1.66</td></tr>
+      <tr><td>4</td><td class="l">GraphCast (started from the ECMWF IFS analysis)</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.290</td><td>0.142</td><td>0.578</td><td>0.658</td><td>2.42</td><td>1.55</td></tr>
+      <tr><td>5</td><td class="l">FuXi (started from ERA5)</td><td class="l"><span class="badge ai">AI · run here</span></td><td>0.284</td><td>0.082</td><td>0.656</td><td>0.566</td><td>2.16</td><td>1.19</td></tr>
+      <tr><td>6</td><td class="l">ECMWF ENS (ensemble mean)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.270</td><td>0.104</td><td>0.623</td><td>0.633</td><td>2.50</td><td>1.85</td></tr>
+      <tr><td>7</td><td class="l">NOAA AIGFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.263</td><td>0.115</td><td>0.611</td><td>0.617</td><td>2.50</td><td>1.61</td></tr>
+      <tr><td>8</td><td class="l">ECMWF IFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.256</td><td>0.118</td><td>0.616</td><td>0.606</td><td>2.64</td><td>1.48</td></tr>
+      <tr><td>9</td><td class="l">NOAA GEFS (mean)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.244</td><td>0.079</td><td>0.672</td><td>0.577</td><td>2.51</td><td>1.77</td></tr>
+      <tr><td>10</td><td class="l">UK Met Office UM</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.243</td><td>0.115</td><td>0.647</td><td>0.556</td><td>2.89</td><td>1.25</td></tr>
+      <tr><td>11</td><td class="l">National Blend of Models (NBM)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.241</td><td>0.129</td><td>0.639</td><td>0.621</td><td>2.55</td><td>1.42</td></tr>
+      <tr><td>12</td><td class="l">NOAA GFS</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.235</td><td>0.106</td><td>0.657</td><td>0.575</td><td>2.66</td><td>1.38</td></tr>
+      <tr><td>13</td><td class="l">CESM2 / CAM6 (1°, run here; land from a 1-year spin-up)</td><td class="l"><span class="badge nwp">Physics · run here</span></td><td>0.199</td><td>0.058</td><td>0.738</td><td>0.485</td><td>2.78</td><td>1.37</td></tr>
+      <tr><td>–</td><td class="l">NAM (days 1–3 only)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.296</td><td>0.132</td><td>0.575</td><td>0.625</td><td>2.58</td><td>1.26</td></tr>
+      <tr><td>–</td><td class="l">HRRR (days 1–2 only)</td><td class="l"><span class="badge dl">Downloaded</span></td><td>0.308</td><td>0.152</td><td>0.532</td><td>0.608</td><td>2.81</td><td>1.15</td></tr>
+    </table></div>
+    <div class="notes" style="margin-top:8px">
+      <p style="margin:0 0 6px"><b>Reading the table.</b> On this test rainfallAI ranks first of the thirteen 7-day forecasts on all five scores. NAM and HRRR forecast only 3.5 and 2 days, so their scores are averages of the easier first days and are not ranked. CESM, a 1° climate model, ranks last: coarse grids smooth out rain. <span id="r7pend">WRF, ICON, MPAS and E3SM, which we also run ourselves, are being re-run for these dates and will be added.</span> It ranks first on
+      days 1–4 on IOA, SEEPS and every threat score; on days 5–7 ECMWF's AIFS is slightly ahead on SEEPS and IOA. It under-forecasts days of 1 inch or more at long range.
+      The amount is the model's 75 % quantile, raised to 0.5 or 1 inch where its own probability of that much rain passes a threshold that depends on the lead day.
+      The model and that rule were fixed on data before the test period, then scored here once.</p>
+      <p style="margin:0 0 6px">ETS = equitable threat score; SEEPS = stable equitable error in probability space (WMO/ECMWF headline rain
+      score, 0 = perfect); IOA = Willmott index of agreement (1 = perfect); MAE = mean absolute error of the daily total. This table is scored on a
+      grid (MRMS radar + gauges), which is also what rainfallAI was trained on, so the independent station table above is the fairer everyday
+      comparison. Re-scoring with conservative instead of bilinear regridding of the raw models changed no rank in an 8-model check.
+      Several versions of the model were scored on this period while it was being developed, so its numbers here are slightly optimistic.</p>
+      <p style="margin:0">rainfallAI runs every day since 31 October 2026 (precipitation maps above, "AI · run here" group) and is ranked in
+      the station-based precipitation table. The version in this table, with the ECMWF inputs, replaces the early-morning run each day from 1 November 2026, once those forecasts are out.</p>
+    </div>
+  </section>
+
+  <section class="block" id="poptest" style="display:none">
+    <h2>Rain probability test: 38 seven-day forecasts</h2>
+    <div class="sub">How good is each forecast's chance of rain? Daily rain at lead days 1–7 from the same 38 starts as the rain test above (every
+      third day, 1 July – 20 October 2026, 00 UTC), checked two ways: against NOAA MRMS radar + gauge analysis on the same 0.1° grid cells for every
+      model, and against ASOS weather-station rain gauges (24 h ending 00 UTC; each forecast taken in the gauge's 0.1° cell). Ensembles give the share of
+      their members that reach the amount (ECMWF ENS: 51 members, NOAA GEFS: 31); the National Blend of Models and rainfallAI forecast the probability
+      directly. A single-run forecast gets a neighbourhood probability: the share of 0.1° cells in the 1.1° box around each point that reach the amount
+      (box size fixed before scoring, the same scale as the rain test's FSS). Brier skill score: 0 = no better than always forecasting the test
+      period's average chance of rain, 1 = perfect. ROC area: how well a high chance picks out the rainy days (0.5 = no skill, 1 = perfect).
+      Ranked by Brier skill at 0.1 inch; best in bold.</div>
+    <div class="seg" id="p7src" style="margin-top:10px;display:none"></div>
+    <h3 style="margin:16px 0 4px;font-size:1rem" id="p7head">Test period: 38 seven-day forecasts, 1 July – 20 October 2026</h3>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="p7tab"><tr><td class="l">Loading…</td></tr></table></div>
+    <p class="sub" style="margin-top:8px" id="p7note"></p>
+  </section>
+
+  <section class="block" id="t2mtest" style="display:none">
+    <h2>Temperature test: 38 seven-day forecasts at weather stations</h2>
+    <div class="sub">2 m temperature every 6 hours out to 7 days, from the same 38 starts as the rain test above (every third day, 1 July – 20 October 2026,
+      00 UTC), checked against about 2,400 ASOS/AWOS weather stations (Iowa Environmental Mesonet reports at 00, 06, 12 and 18 UTC). As in last week's
+      accuracy table, each forecast is moved from the model's terrain height to the station's height (6.5 °C per km). Each AI model starts from the data
+      it was trained on (GraphCast, WeatherNext 2 and Aurora 1.5: ECMWF IFS analysis; FuXi and Atlas: ERA5); GraphCast and FuXi started from GFS, as in the
+      daily forecasts above, are listed too. Ranked models are scored on exactly the same station times; best in bold.</div>
+    <h3 style="margin:16px 0 4px;font-size:1rem" id="t7head">Test period: 38 seven-day forecasts, 1 July – 20 October 2026</h3>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="t7tab"><tr><td class="l">Loading…</td></tr></table></div>
+    <p class="sub" style="margin-top:8px" id="t7note"></p>
+  </section>
+
+  <section class="block" id="windtest" style="display:none">
+    <h2>Wind test: 38 seven-day forecasts at weather stations</h2>
+    <div class="sub">10 m wind every 6 hours out to 7 days, from the same 38 starts as the rain and temperature tests (every third day, 1 July –
+      20 October 2026, 00 UTC), checked against the same ASOS/AWOS weather stations. As in last week's accuracy table, wind speed is taken at the station
+      from each model's grid without a height adjustment, and the direction error (the smaller angle between forecast and observed direction) is only
+      counted when the observed wind is at least 5 knots. AI models start from the data they were trained on, plus GraphCast and FuXi started from GFS.
+      Ranked models are scored on exactly the same station times; ranked by speed RMSE, best in bold. Smooth forecasts (ensemble means, most AI models)
+      tend to score well on RMSE while underestimating gusty winds.</div>
+    <h3 style="margin:16px 0 4px;font-size:1rem" id="w7head">Test period: 38 seven-day forecasts, 1 July – 20 October 2026</h3>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="w7tab"><tr><td class="l">Loading…</td></tr></table></div>
+    <p class="sub" style="margin-top:8px" id="w7note"></p>
+  </section>
+
+  <section class="block" id="rhtest" style="display:none">
+    <h2>Humidity test: 38 seven-day forecasts at weather stations</h2>
+    <div class="sub">2 m relative humidity every 6 hours out to 7 days, from the same 38 starts as the rain, temperature and wind tests (every third
+      day, 1 July – 20 October 2026, 00 UTC), checked against the same ASOS/AWOS weather stations. As in last week's accuracy table, relative humidity
+      comes from each model's 2 m dewpoint, or, for models that only give humidity on pressure levels (marked *), from the level nearest the ground at the
+      2 m temperature, which is approximate. AI models start from the data they were trained on, plus GraphCast and FuXi started from GFS. Ranked models
+      are scored on exactly the same station times; best in bold.</div>
+    <h3 style="margin:16px 0 4px;font-size:1rem" id="h7head">Test period: 38 seven-day forecasts, 1 July – 20 October 2026</h3>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="h7tab"><tr><td class="l">Loading…</td></tr></table></div>
+    <p class="sub" style="margin-top:8px" id="h7note"></p>
+  </section>
+
+  <section class="block" id="s2s" style="display:none">
+    <h2>Test period, 4 weeks ahead: weekly rain <span class="badge dl" style="vertical-align:middle">being filled in</span></h2>
+    <div class="sub">The same 38 start dates (every third day, 1 July – 20 October 2026), now scored on <b>weekly rain totals</b> for weeks 1–4
+      (days 1–7, 8–14, 15–21, 22–28) against NOAA MRMS (0.1° grid, contiguous US). In each week every model is scored on the same starts and
+      grid cells. Ranked by the skill score against climatology (MSESS: mean squared error relative to the 2021–2025 MRMS average for the same
+      calendar week; above 0 = better than climatology). Models that stop at 15 days (GFS, ECMWF IFS, AIFS and the ECMWF ensemble) appear in weeks 1–2 only.
+      rainfallAI-S2S is our 4-week model: a U-Net (3 trained copies averaged) that turns GEFS weekly rain, the MJO and ENSO into weekly totals, trained on the GEFS 20-year reforecast with NOAA AORC rain (2000–2019) and on 2021–2025 with MRMS, checked on separate months before this test; its statistical baseline weighs GEFS, CFS, the MJO and ENSO against climatology region by region; rainfallAI forecasts 7 days, so it appears in week 1 only (it is trained on MRMS, the truth used here, so the station table and the Stage IV check are its fairer tests); WRF cannot run 28 days (its GFS boundaries end at 16 days).</div>
+    <div class="seg" id="s2sweeks" style="margin-top:10px"></div>
+    <div class="tablewrap" style="margin-top:10px"><table class="ver" id="s2stab"></table></div>
+    <div class="notes" style="margin-top:8px"><p style="margin:0" id="s2snote"></p></div>
+  </section>
+
+  <section class="block" id="models">
+    <h2>The models</h2>
+    <div class="sub">Three kinds of forecast are shown. All of them start from the 00 UTC time of the day shown at the top.</div>
+    <div class="legend3">
+      <div><span class="badge ai">AI · run here</span><p style="margin:8px 0 0">AI weather foundation models, trained on decades of
+        past weather (mostly the ECMWF ERA5 reanalysis). We run them ourselves every day on NVIDIA L40S GPUs, all started
+        from the same NOAA GFS analysis, so differences come from the models alone. Each takes minutes rather than hours.</p></div>
+      <div><span class="badge nwp">Physics · run here</span><p style="margin:8px 0 0">Numerical models that solve the equations of the
+        atmosphere on a grid. We run them ourselves every day on CPU nodes, also started from the GFS analysis. They range from
+        a 12 km regional weather model (WRF) to global climate models (CESM, E3SM) run in forecast mode.</p></div>
+      <div><span class="badge dl">Downloaded</span><p style="margin:8px 0 0">The official forecasts of national weather centres (NOAA,
+        ECMWF, Environment Canada, DWD, Met Office, Météo-France, NASA, US Navy), downloaded each morning from their open-data services.
+        Each starts from that centre's own data assimilation, which is usually the biggest advantage over the models we run.</p></div>
+    </div>
+    <div id="guide"></div>
+  </section>
+
+  <section class="block notes" id="about">
+    <h2>Methods and caveats</h2>
+    <ul>
+      <li><b>Next 48 h (3-hourly)</b> shows the first two days at 3-hour steps from the models that output that often (for example ECMWF IFS, NOAA GFS, Pangu-Weather's 3-hour model, WRF, CESM, E3SM and ICON, as available that day). <b>Next 48 h (hourly)</b> shows the models with hourly output. Map times are UTC with US Central time in brackets; precipitation is the 3 h (or 1 h) total ending at that time.</li>
+      <li>Temperatures are in °F, precipitation in inches, wind in mph. City charts are shown in each city's own local time (daylight saving included).</li>
+      <li><b>Verification</b>: every model's forecasts from the last seven 00 UTC cycles (re-run as hindcasts where the daily run did not exist yet) are interpolated to ~2,400 ASOS/AWOS weather stations (Iowa Environmental Mesonet) and compared with the hourly reports at 00/06/12/18 UTC. Temperature, humidity and wind speed are ranked by root-mean-square error (RMSE, lower is better); the index of agreement (IOA, Willmott 1981: 1 − Σ(F−O)² / Σ(|F−Ō|+|O−Ō|)², 1 = perfect, 0 = no better than the observed mean) is shown for every variable except wind direction; wind direction by mean absolute angle error (MAE, only when the observed wind is ≥5 kt); bias is forecast minus observed. Precipitation compares 24 h totals at ASOS stations and ~19,000 CoCoRaHS volunteer gauges (24 h ending at the morning reading, matched to 12 UTC), and is ranked by the equitable threat score for ≥0.1 in (ETS, higher is better; 0 = no skill); ETS for ≥0.5 in (heavier rain) is also shown. All ranked models are scored on exactly the same station times. Stations measure one point while models predict a grid-box average, and no terrain-height correction is applied, so coarse models are penalized over mountains.</li>
+      <li>Short-range models (HRRR, NAM, RRFS, ARPEGE) stop at their last forecast hour. Models covering less than 97% of the stations are listed below the ranking with their own-domain score, so they do not change the other models' station sample.</li>
+      <li>"Day N" means hours 24(N−1)–24N after the start time. Maxima and minima use 6-hourly output, so true daily extremes may be slightly higher or lower.</li>
+      <li><b>Spread</b> is the standard deviation across all models that predict a field. Large spread means the forecast is uncertain.</li>
+      <li>Most AI models do not predict surface humidity or rain. For them, surface humidity is estimated from the model's lowest pressure level above ground (1000/925/850/700 hPa), so humidity-based indices are approximate. Fields a model cannot provide are left out.</li>
+      <li>Indices: heat index (NWS Rothfusz); WBGT (simplified, shade); Fosberg Fire Weather Index; Hot-Dry-Windy Index (surface approximation: VPD × wind); reference ET from Hargreaves–Samani; 7-day P − ET₀ as the forecast's contribution to drying or wetting. Drought indices such as SPI or the US Drought Monitor need months of observations and are not forecast here.</li>
+      <li>The climate models (CESM, E3SM) cycle their land surface from day to day. CESM's land has come from a spin-up since the 31 Oct 2026 run; earlier runs had a cold-started land with a cold bias of about 8 °F, so its scores count only runs from 31 Oct on, and it is listed as not ranked until it has enough forecasts. E3SM's land starts from a 1-year spin-up from 30 Oct 2026, and its scores likewise count only runs from that date.</li>
+      <li>Data: NOAA/NCEP products are public domain. ECMWF IFS, AIFS and ensemble forecasts © ECMWF, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> (ECMWF open data). Other centres' data are used under their open-data terms. Several AI model weights are licensed for non-commercial use only.</li>
+      <li>Research product. Use official <a href="https://www.weather.gov/">NWS forecasts</a> for decisions.</li>
+    </ul>
+  </section>
+</main>
+<footer>
+  <div>
+    Built and run by <a href="https://hadizkia.github.io/">Hadi Zanganeh Kia</a>, University of Houston.
+    Updated automatically every day. <span id="footmeta"></span>
+    <div style="margin-top:8px">Research product: for decisions use official <a href="https://www.weather.gov/">NWS forecasts</a>.</div>
+  </div>
+  <div class="cite">
+    <div class="ct">Cite this page <button id="citebtn" type="button">Copy</button></div>
+    <p id="citetext">Zanganeh Kia, H. (2026). <i>US Forecast Comparison: daily AI and physics weather models verified against observations.</i>
+      University of Houston. https://hadizkia.github.io/forecasts/</p>
+  </div>
+</footer>
+</div>
+</div>
+<div id="zoom"><img alt=""></div>
+
+<script>
+const BASE = "latest/";
+let M, CITIES, SUBC = {}, chart, day = 1, mode = "daily", lead = 0, timer = null, groupF = "all", cgroupF = "all";
+const $ = id => document.getElementById(id);
+
+// ------------------------------------------------------------ where each forecast comes from
+const RUN_AI = new Set(["rainai", "raint", "rainw", "graphcast", "gencast", "aurora", "aurora15", "pangu", "pangu3", "fuxi", "fengwu", "sfno", "fcn3", "aurora15ens", "weathernext2", "atlas", "aifs2"]);
+const RUN_NWP = new Set(["wrf", "cesm", "e3sm", "icon", "mpas"]);
+const group = id => RUN_AI.has(id) ? "ai" : RUN_NWP.has(id) ? "nwp" : "dl";
+const GROUPS = {
+  ai: {label: "AI · run here", title: "AI foundation models we run on our GPUs"},
+  nwp: {label: "Physics · run here", title: "Numerical (physics) models we run on our CPUs"},
+  dl: {label: "Downloaded", title: "Operational forecasts downloaded from weather centres"},
+};
+const badge = id => `<span class="badge ${group(id)}">${GROUPS[group(id)].label}</span>`;
+
+// ------------------------------------------------------------ model guide (what each one is)
+const DOCS = {
+  ifs: {by: "ECMWF (Europe)", type: "Physics, global", res: "~9 km (open data at 0.25°)", text: "The European Centre's Integrated Forecasting System, widely regarded as the most accurate global physics model. Starts from ECMWF's own 4D-Var data assimilation."},
+  aifs: {by: "ECMWF (Europe)", type: "AI, global (operational)", res: "0.25°", text: "ECMWF's Artificial Intelligence Forecasting System: a graph neural network with a transformer processor, trained on ERA5 and ECMWF analyses and run operationally from ECMWF's own analysis."},
+  ifs_ens: {by: "ECMWF (Europe)", type: "Physics ensemble mean", res: "~9 km members (0.25° open data)", text: "Mean of the 50 perturbed members of ECMWF's ensemble, computed here from the open-data members. Averaging smooths out unpredictable details, which usually lowers the error from day 3–4 on."},
+  aifs_ens: {by: "ECMWF (Europe)", type: "AI ensemble mean", res: "0.25°", text: "Mean of the 51 members (control + 50) of ECMWF's AI ensemble, computed here from the open-data members."},
+  gfs: {by: "NOAA NCEP (USA)", type: "Physics, global", res: "~13 km (0.25° data)", text: "The US Global Forecast System (FV3 dynamical core). Its analysis is also the starting point for every model we run ourselves."},
+  gefs: {by: "NOAA NCEP (USA)", type: "Physics ensemble mean", res: "~25 km members", text: "Mean of NOAA's 31-member Global Ensemble Forecast System (GEFS v12)."},
+  aigfs: {by: "NOAA (USA)", type: "AI, global (operational)", res: "0.25°", text: "NOAA's AI global forecast, based on Google DeepMind's GraphCast and started from NOAA's GFS data assimilation."},
+  nbm: {by: "NOAA NWS (USA)", type: "Statistical blend", res: "2.5 km", text: "The National Blend of Models combines many models (GFS, GEFS, ECMWF, Canadian, NAM, HRRR…) and corrects them with observations. It is the basis of official NWS forecasts."},
+  hrrr: {by: "NOAA (USA)", type: "Physics, regional", res: "3 km, to 48 h", text: "High-Resolution Rapid Refresh: a convection-allowing model updated every hour with radar data; best for storms in the first two days."},
+  nam: {by: "NOAA (USA)", type: "Physics, regional", res: "12 km, to 84 h", text: "The North American Mesoscale model, NOAA's older regional model."},
+  rrfs: {by: "NOAA (USA)", type: "Physics, regional", res: "3 km, to 84 h", text: "Rapid Refresh Forecast System, the FV3-based convection-allowing successor to NAM and HRRR."},
+  navgem: {by: "US Navy FNMOC", type: "Physics, global", res: "0.5° data", text: "The Navy Global Environmental Model. No 2 m humidity is distributed, so humidity indices are not shown for it."},
+  gem: {by: "Environment and Climate Change Canada", type: "Physics, global", res: "15 km", text: "Canada's Global Environmental Multiscale model (GDPS)."},
+  icon_dwd: {by: "Deutscher Wetterdienst (Germany)", type: "Physics, global", res: "13 km", text: "DWD's operational ICON model on an icosahedral grid."},
+  ukmo: {by: "UK Met Office", type: "Physics, global", res: "~10 km", text: "The Met Office Unified Model, global configuration."},
+  arpege: {by: "Météo-France", type: "Physics, global", res: "0.25° data, to 102 h", text: "Météo-France's global model (stretched grid, finest over France). No 500 hPa map: that field is only in a much larger file."},
+  geosfp: {by: "NASA GMAO", type: "Physics, global", res: "0.25° data", text: "NASA's Goddard Earth Observing System forward-processing forecast. Surface fields are hourly averages, so values are smoother."},
+  raint: {by: "This lab (rainfallAI project)", type: "AI post-processing, temperature and humidity", res: "0.1°", text: "Our own model: three U-Nets, averaged, that correct the GFS 2 m temperature and dewpoint every 6 hours out to 7 days using NBM and ECMWF IFS forecasts, trained on the NOAA URMA analysis (2021–2025), which combines station observations with a short forecast. Relative humidity comes from the corrected temperature and dewpoint. Inputs are physics forecasts, terrain and the analysis at the start time. At long range it can be smoother than a physics model, which lowers its error but softens its maps. No wind. Runs for 25–30 Oct 2026 were made afterwards with an earlier GFS-only version; daily real-time runs started 1 Nov 2026, with NBM and IFS inputs from 2 Nov 2026."},
+  rainw: {by: "This lab (rainfallAI project)", type: "AI post-processing, 10 m wind", res: "0.1°", text: "Our own model: three U-Nets, averaged, that correct the GFS 10 m wind toward NOAA's URMA analysis (station observations + a short forecast) every 6 hours out to 7 days, trained on 2021–2025. Since 8 November 2026 it also reads the National Blend of Models 10 m wind, which mainly improves the wind direction. It predicts the wind speed separately from the direction, so averaging does not weaken strong winds. See the wind test for its long-term scores.", ref: "#windtest"},
+    rainai: {by: "This lab (rainfallAI project)", type: "AI post-processing, precipitation only", res: "0.1° (shown at 0.25°)", text: "Our own model: an ensemble of U-Nets, a vision transformer and graph neural networks that turns the GFS, GEFS, NBM, HRRR, ECMWF IFS and ECMWF ensemble forecasts, plus terrain, into daily rain amounts; since 5 November 2026 two of its members also use GOES satellite imagery, MRMS radar reflectivity and GLM lightning at the start time, GFS vertical motion and soil moisture, GEFS rain probabilities and the previous day's forecasts (the amount is its 70–75 % quantile, set dry where its chance of 0.1 in is under 30–40 % and raised where heavy rain is likely; calibrated on rain gauges and the radar grid, Jan–Jun 2026), trained only on observed rain (NOAA MRMS 2021–2025; part of the ensemble also on NOAA AORC with the GEFS reforecast, 2000–2019). An early run without the ECMWF inputs is replaced each morning. Daily totals are split into 6-hour steps with NBM's timing. See the rainfallAI section for its test scores.", ref: "#rainai"},
+  graphcast: {by: "Google DeepMind", type: "AI, graph neural network", res: "0.25°, 6 h steps", text: "GraphCast (Lam et al. 2023, Science). Predicts the global atmosphere 6 hours ahead, then repeats.", ref: "https://www.science.org/doi/10.1126/science.adi2336"},
+  gencast: {by: "Google DeepMind", type: "AI, diffusion ensemble", res: "1°, 12 h steps", text: "GenCast (Price et al. 2025, Nature), a generative model that samples possible weather. We run GenCast Mini, the smaller 1° version Google released (the full model is 0.25°), with 50 members from the same GFS start (each with different random noise in the model, as in the GenCast paper) and show their mean, which is smoother and usually more accurate than any single member.", ref: "https://www.nature.com/articles/s41586-024-08252-9"},
+  aurora: {by: "Microsoft", type: "AI foundation model", res: "0.25°, 6 h steps", text: "Aurora (Bodnar et al. 2025, Nature), a 1.3-billion-parameter foundation model of the atmosphere.", ref: "https://www.nature.com/articles/s41586-025-09005-y"},
+  aurora15: {by: "Microsoft", type: "AI foundation model", res: "0.25°", text: "Aurora 1.5, a newer Aurora release."},
+  pangu: {by: "Huawei", type: "AI, 3-D transformer", res: "0.25°, 6 h (and 3 h) steps", text: "Pangu-Weather (Bi et al. 2023, Nature), an Earth-specific 3-D transformer; its 3-hour model feeds the 48 h view.", ref: "https://www.nature.com/articles/s41586-023-06185-3"},
+  fuxi: {by: "Fudan University", type: "AI, cascaded transformer", res: "0.25°, 6 h steps", text: "FuXi (Chen et al. 2023, npj Climate and Atmospheric Science), separate models for short, medium and long lead times.", ref: "https://www.nature.com/articles/s41612-023-00512-1"},
+  fengwu: {by: "Shanghai AI Laboratory", type: "AI, multi-modal transformer", res: "0.25°, 6 h steps", text: "FengWu (Chen et al. 2023), which treats each variable group as its own modality."},
+  sfno: {by: "NVIDIA", type: "AI, neural operator", res: "0.25°, 6 h steps", text: "Spherical Fourier Neural Operator (Bonev et al. 2023), the FourCastNet v2 architecture."},
+  fcn3: {by: "NVIDIA", type: "AI, probabilistic", res: "0.25°", text: "FourCastNet 3 (Bonev et al. 2025), a spherical neural operator ensemble model trained on ERA5. We run it from the GFS start."},
+  aurora15ens: {by: "Microsoft", type: "AI foundation model, ensemble", res: "0.25°", text: "Aurora 1.5 in its ensemble mode (pretrained on ERA5 and other data, fine-tuned on ECMWF IFS analyses). We run 10 members from the same GFS start, each with different model noise, and show their mean. Its 6-hourly output has no rain total, so it appears on the temperature, wind and pressure maps only."},
+  weathernext2: {by: "Google DeepMind", type: "AI, functional generative network", res: "0.25°, 6 h steps", text: "WeatherNext 2 (Alet et al. 2025), Google's successor to GraphCast and GenCast, trained on ERA5 and ECMWF HRES and released openly in 2026. Google reports it as a 64-member ensemble (4 trained checkpoints × 16 noise draws), so we show the mean of all 64 members, run here from the GFS start.", ref: "https://developers.google.com/weathernext/guides/models-wn2"},
+  atlas: {by: "NVIDIA", type: "AI (Earth-2 Medium Range)", res: "0.25°, 6 h steps", text: "Atlas, the model behind NVIDIA's Earth-2 Medium Range forecasts (2026), trained on ERA5 1980–2019. We run it from the GFS start.", ref: "https://huggingface.co/nvidia/atlas-era5"},
+  aifs2: {by: "ECMWF", type: "AI (graph transformer)", res: "0.25°", text: "ECMWF's AIFS Single v2 (2026) run here from the same GFS start as our other AI models; the separate 'ECMWF AIFS' row is ECMWF's own run from its own analysis.", ref: "https://confluence.ecmwf.int/display/FCST/Implementation+of+AIFS+Single+v2"},
+  wrf: {by: "NCAR (community model); run here", type: "Physics, regional", res: "12 km over the US, 45 levels", text: "The Weather Research and Forecasting model (ARW 4.3.3) with the CONUS physics suite, driven by GFS at its boundaries. About 45 minutes on 4 nodes."},
+  cesm: {by: "NCAR (community model); run here", type: "Physics, climate model", res: "1°", text: "CESM2 / CAM6 (iCESM2 with water isotopes), a climate model run in weather-forecast mode with Betacast (Zarzycki & Jablonowski 2015). Its land model is cycled day to day.", ref: "https://github.com/zarzycki/betacast"},
+  e3sm: {by: "US DOE (community model); run here", type: "Physics, climate model", res: "~100 km", text: "E3SM v3 (EAMv3 + ELM), the Department of Energy's climate model, run in forecast mode with Betacast."},
+  icon: {by: "DWD / MPI-M (community model); run here", type: "Physics, global", res: "~40 km", text: "ICON run here from the GFS analysis: the same model family as DWD's, at coarser resolution and without DWD's data assimilation."},
+  mpas: {by: "NCAR (community model); run here", type: "Physics, global", res: "60 km", text: "The Model for Prediction Across Scales (atmosphere), on a variable-resolution Voronoi mesh, run here at a uniform 60 km."},
+};
+function drawGuide() {
+  const box = $("guide"); box.innerHTML = "";
+  for (const g of ["ai", "nwp", "dl"]) {
+    const ms = M.models.filter(m => group(m.id) === g);
+    if (!ms.length) continue;
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>${GROUPS[g].title}</h3><span class="sub">${ms.length} models</span></div>`);
+    const grid = document.createElement("div"); grid.className = "guide";
+    for (const m of ms) {
+      const d = DOCS[m.id] || {by: "", type: m.kind, res: "", text: ""};
+      grid.insertAdjacentHTML("beforeend", `<div class="mcard ${g}" id="doc-${m.id}"><h4><span>${m.name}</span>${badge(m.id)}</h4>
+        <div class="by">${d.by}</div><p>${d.text}${d.ref ? (d.ref.startsWith("#") ? ` <a href="${d.ref}">Scores ↓</a>` : ` <a href="${d.ref}" target="_blank" rel="noopener">Paper ↗</a>`) : ""}</p>
+        <dl><dt>Type</dt><dd>${d.type}</dd>${d.res ? `<dt>Grid</dt><dd>${d.res}</dd>` : ""}</dl></div>`);
+    }
+    box.appendChild(grid);
+  }
+}
+function showDoc(id) {
+  const el = $("doc-" + id); if (!el) return;
+  el.scrollIntoView({behavior: "smooth", block: "center"});
+  el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600);
+}
+
+function drawStats() {
+  const n = g => M.models.filter(m => group(m.id) === g).length;
+  $("stats").innerHTML =
+    `<div class="stat"><div class="n">${M.models.length}</div><div class="t">forecasts compared today</div></div>` +
+    `<div class="stat ai"><div class="n">${n("ai")}</div><div class="t">AI models run here</div></div>` +
+    `<div class="stat nwp"><div class="n">${n("nwp")}</div><div class="t">physics models run on our CPUs</div></div>` +
+    `<div class="stat dl"><div class="n">${n("dl")}</div><div class="t">downloaded from weather centres</div></div>`;
+}
+
+function fmtInit(s) { return new Date(s).toUTCString().replace(":00 GMT", " UTC").replace(":00:00", ":00"); }
+function fmtValid(h) {
+  const t = new Date(new Date(M.init).getTime() + h * 36e5);
+  const utc = t.toUTCString().slice(0, 11) + " " + String(t.getUTCHours()).padStart(2, "0") + " UTC";
+  const loc = t.toLocaleString("en-US", {timeZone: "America/Chicago", hour: "numeric", timeZoneName: "short"});
+  return `+${h} h · ${utc} (${loc})`;
+}
+const H = () => M[mode] || {models: [], fields: {}, spread_fields: [], step_hours: 3};
+const SUB = {hourly: "cities3h.json", hourly1: "cities1h.json"};
+
+async function init() {
+  M = await (await fetch(BASE + "manifest.json", {cache: "no-cache"})).json();
+  CITIES = await (await fetch(BASE + "cities.json", {cache: "no-cache"})).json();
+  for (const [k, f] of Object.entries(SUB))
+    SUBC[k] = await fetch(BASE + f, {cache: "no-cache"}).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+  $("meta").textContent = `Forecast start ${fmtInit(M.init)} · updated ${M.generated.replace("T", " ").replace("Z", " UTC")}`;
+  $("footmeta").textContent = `Latest forecast start: ${fmtInit(M.init)}.`;
+  drawStats(); drawGuide();
+  $("mode").querySelectorAll("button").forEach(b => {
+    if (b.dataset.m !== "daily" && !(M[b.dataset.m] && M[b.dataset.m].models.length)) b.style.display = "none"; });
+  $("mode").querySelectorAll("button").forEach(b => b.onclick = () => setMode(b.dataset.m));
+  $("groupf").querySelectorAll("button").forEach(b => b.onclick = () => {
+    groupF = b.dataset.g; $("groupf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); drawGrid(); });
+  $("cgroupf").querySelectorAll("button").forEach(b => b.onclick = () => {
+    cgroupF = b.dataset.g; $("cgroupf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); drawChart(); });
+  $("field").onchange = () => { drawDays(); drawGrid(); };
+  $("spreadOnly").onchange = drawGrid;
+  $("lead").oninput = () => { lead = +$("lead").value; drawGrid(); };
+  $("play").onclick = () => {
+    if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶"; return; }
+    $("play").textContent = "❚❚";
+    timer = setInterval(() => { const n = leads().length; lead = (lead + 1) % n; $("lead").value = lead; drawGrid(); }, 900);
+  };
+  const cs = $("city");
+  Object.keys(M.cities).sort().forEach(c => cs.add(new Option(c, c)));
+  cs.value = "Houston";
+  cs.onchange = drawChart; $("cvar").onchange = drawChart;
+  setMode("daily");
+}
+
+function setMode(m) {
+  mode = m;
+  if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶"; }
+  $("mode").querySelectorAll("button").forEach(b => b.className = b.dataset.m === m ? "on" : "");
+  const fs = $("field"), prev = fs.value; fs.innerHTML = "";
+  const fields = m === "daily" ? M.fields : H().fields;
+  for (const [k, f] of Object.entries(fields))
+    fs.add(new Option(f.label + (f.units ? ` (${f.units})` : ""), k));
+  if ([...fs.options].some(o => o.value === prev)) fs.value = prev;
+  $("days").style.display = m === "daily" ? "" : "none";
+  $("timeline").style.display = m === "daily" ? "none" : "";
+  const st = m === "daily" ? 6 : H().step_hours;
+  $("cityhead").textContent = m === "daily" ? "City forecasts (6-hourly, 7 days)"
+    : `City forecasts (${st === 1 ? "hourly" : st + "-hourly"}, next 48 h)`;
+  const cv = $("cvar");
+  ["6", "3", "1"].forEach(h => cv.querySelector(`[value="precip${h}h"]`).hidden = +h !== st);
+  if (cv.value.startsWith("precip")) cv.value = `precip${st}h`;
+  drawDays(); drawGrid(); drawChart();
+}
+
+function leads() { const f = H().fields[$("field").value]; return f ? f.leads : []; }
+
+function drawDays() {
+  if (mode !== "daily") {
+    const L = leads(); lead = Math.min(lead, L.length - 1);
+    $("lead").max = L.length - 1; $("lead").value = lead;
+    return;
+  }
+  const f = M.fields[$("field").value], box = $("days");
+  box.innerHTML = "";
+  if (f.weekly) { day = 0; return; }
+  if (day < 1) day = 1;
+  M.days.forEach(d => {
+    const b = document.createElement("button");
+    const t = new Date(new Date(M.init).getTime() + (d - (f.label.startsWith("500 hPa") ? 0 : 1)) * 864e5);  // day N starts N-1 days after init; the 500 hPa map is 00 UTC at its end
+    b.textContent = `Day ${d} · ${t.toUTCString().slice(0, 3)}`;
+    b.className = d === day ? "on" : "";
+    b.onclick = () => { day = d; drawDays(); drawGrid(); };
+    box.appendChild(b);
+  });
+}
+
+function makeCard(m, f, key, suffix, hourly) {
+  const g = m.id === "spread" ? "" : group(m.id);
+  const card = document.createElement("div"); card.className = "card " + g; card.id = "card-" + m.id;
+  if (f.models.includes(m.id)) {
+    const img = new Image(); img.loading = hourly ? "eager" : "lazy";
+    img.src = `${BASE}maps/${key}_${m.id}${suffix}.png`; img.alt = `${m.name} ${f.label}`;
+    img.onclick = () => { const z = $("zoom"); z.firstElementChild.src = img.src; z.style.display = "flex"; };
+    img.onerror = () => img.replaceWith(Object.assign(document.createElement("div"),
+      {className: "na", textContent: `${m.name} does not forecast this far ahead.`}));
+    card.appendChild(img);
+  } else if (!hourly && key !== "precip" && M.fields.precip && M.fields.precip.models.includes(m.id)
+             && !Object.entries(M.fields).some(([k, x]) => k !== "precip" && x.models.includes(m.id))) {
+    // precipitation-only model (rainfallAI): point to its rain map instead of a dead card
+    card.innerHTML = `<div class="na">${m.name} forecasts precipitation only.<br><button class="goprecip" style="margin-top:10px;padding:6px 12px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font:inherit">Show its 24 h precipitation map</button></div>`;
+    card.querySelector(".goprecip").onclick = () => { $("field").value = "precip"; drawDays(); drawGrid();
+      const c = document.getElementById("card-" + m.id); if (c) c.scrollIntoView({behavior: "smooth", block: "center"}); };
+  } else {
+    card.innerHTML = `<div class="na">${m.name} does not predict the inputs for this field.</div>`;
+  }
+  const cap = document.createElement("div"); cap.className = "cap";
+  cap.innerHTML = m.id === "spread" ? `<span class="name">${m.name}</span><span class="kind">${m.kind}</span>`
+    : `<span><span class="name">${m.name}</span>${DOCS[m.id] ? `<span class="info" title="What is this model?">i</span>` : ""}</span>${badge(m.id)}`;
+  const info = cap.querySelector(".info"); if (info) info.onclick = () => showDoc(m.id);
+  card.appendChild(cap);
+  return card;
+}
+
+function drawGrid() {
+  const key = $("field").value, hourly = mode !== "daily";
+  const src = hourly ? H() : M, f = src.fields[key];
+  const only = $("spreadOnly").checked;
+  const box = $("grid"); box.innerHTML = "";
+  if (!f) return;
+  const h = hourly ? f.leads[lead] : null;
+  if (hourly) $("leadlab").textContent = fmtValid(h);
+  const suffix = hourly ? `_h${String(h).padStart(2, "0")}` : `_d${day}`;
+  const models = src.models.map(m => ({id: m.id, name: m.name, kind: m.kind}));
+  if (src.spread_fields.includes(key) && (groupF === "all" || only)) {
+    const g = document.createElement("div"); g.className = "grid";
+    g.appendChild(makeCard({id: "spread", name: "Model spread", kind: "std. dev. across all models"}, {models: ["spread"], label: f.label}, key, suffix, hourly));
+    if (only) { box.appendChild(g); return; }
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>Agreement between models</h3><span class="sub">large spread = uncertain forecast</span></div>`);
+    box.appendChild(g);
+  }
+  if (only) return;
+  for (const gk of ["dl", "ai", "nwp"]) {
+    if (groupF !== "all" && groupF !== gk) continue;
+    const ms = models.filter(m => group(m.id) === gk);
+    if (!ms.length) continue;
+    box.insertAdjacentHTML("beforeend", `<div class="grouphead"><h3>${GROUPS[gk].title}</h3><span class="sub">${ms.length}</span></div>`);
+    const g = document.createElement("div"); g.className = "grid";
+    ms.forEach(m => g.appendChild(makeCard(m, f, key, suffix, hourly)));
+    box.appendChild(g);
+  }
+}
+
+// local-time helpers for the selected city (IANA zone; handles DST and Arizona)
+function local(x, tz) {
+  const p = {};
+  new Intl.DateTimeFormat("en-US", {timeZone: tz, weekday: "short", day: "numeric", month: "short",
+    hour: "numeric", hourCycle: "h23", timeZoneName: "short"}).formatToParts(new Date(x)).forEach(q => p[q.type] = q.value);
+  return p;
+}
+function ampm(h) { return h === 0 ? "12 AM" : h === 12 ? "12 PM" : h > 12 ? `${h - 12} PM` : `${h} AM`; }
+
+const PALETTE = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4", "#f032e6", "#9a6324", "#469990", "#800000",
+  "#808000", "#000075", "#bfef45", "#fabed4", "#dcbeff", "#aaffc3", "#ffd8b1", "#a9a9a9", "#1f77b4", "#ff7f0e", "#2ca02c",
+  "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#ffe119", "#6a3d9a", "#b15928", "#33a02c"];
+
+function drawChart() {
+  const city = $("city").value, v = $("cvar").value, hourly = mode !== "daily";
+  const t0 = new Date(M.init).getTime(), step = (hourly ? H().step_hours : M.series_step_hours) * 36e5;
+  const data = hourly ? SUBC[mode] : CITIES, models = hourly ? H().models : M.models;
+  const datasets = models.map((m, i) => {
+    const s = data[city] && data[city][m.id] && data[city][m.id][v];
+    const g = group(m.id);
+    if (!s || (cgroupF !== "all" && cgroupF !== g)) return null;
+    const c = PALETTE[i % PALETTE.length];
+    return { label: m.name, data: s.map((y, k) => ({x: t0 + k * step, y})), borderColor: c, backgroundColor: c,
+             borderWidth: g === "nwp" ? 3 : 1.7, borderDash: g === "dl" ? [6, 4] : [],
+             pointRadius: hourly ? 2 : 0, tension: .25, spanGaps: true };
+  }).filter(Boolean);
+  const band = cview === "band" && datasets.length >= 4;
+  if (band) {  // meteogram style: every model faint, the median bold, the middle 80 % shaded
+    const n = Math.max(...datasets.map(d => d.data.length)), med = [], lo = [], hi = [];
+    for (let k = 0; k < n; k++) {
+      const ys = datasets.map(d => d.data[k] && d.data[k].y).filter(y => y != null && isFinite(y)).sort((a, b) => a - b);
+      const q = f => { const p = (ys.length - 1) * f, i = Math.floor(p); return ys[i] + (ys[Math.min(i + 1, ys.length - 1)] - ys[i]) * (p - i); };
+      const x = t0 + k * step;
+      if (ys.length >= 3) { med.push({x, y: q(.5)}); lo.push({x, y: q(.1)}); hi.push({x, y: q(.9)}); }
+    }
+    const acc = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#1f4fbf";
+    datasets.forEach(d => { d.borderColor = d.borderColor + "40"; d.borderWidth = 1; d.borderDash = []; d.pointRadius = 0; d.faint = true; });
+    datasets.push({label: "Middle 80 % of models", data: hi, borderDash: [], borderWidth: 0, pointRadius: 0, backgroundColor: acc + "26", fill: "+1", tension: .25, order: 0});
+    datasets.push({label: "_lo", data: lo, borderDash: [], borderWidth: 0, pointRadius: 0, backgroundColor: acc + "26", fill: false, tension: .25});
+    datasets.push({label: `Median of ${datasets.length - 2} models`, data: med, borderDash: [], borderColor: acc, backgroundColor: acc, borderWidth: 3.2, pointRadius: 0, tension: .25});
+  }
+  $("ccap").innerHTML = band ? "<b>How to read.</b> The bold line is the median of all models shown and the shaded band holds the middle 80 % of them: a narrow band means the models agree. Faint lines are the individual models; hover to read each one, or switch to “Every model”."
+    : "<b>Line style:</b> solid = AI run here, thick = physics run here, dashed = downloaded. Click a legend entry to hide a model.";
+  if (chart) chart.destroy();
+  const css = getComputedStyle(document.documentElement);
+  const fg = css.getPropertyValue("--muted"), grid = css.getPropertyValue("--line");
+  const tz = (M.cities[city] && M.cities[city].tz) || "UTC";
+  $("tzlab").textContent = `times in ${city} local time (${local(t0, tz).timeZoneName})`;
+  const tick = x => { const p = local(x, tz), hh = +p.hour;
+    return hh === 0 ? `${p.weekday} ${p.day} ${p.month}` : (hourly ? ampm(hh) : ""); };
+  const localTicks = axis => {  // a tick every 6 local hours, labelled at local midnight
+    const out = [];
+    for (let t = Math.ceil(axis.min / 36e5) * 36e5; t <= axis.max; t += 36e5)
+      if (+local(t, tz).hour % 6 === 0) out.push({value: t});
+    axis.ticks = out;
+  };
+  chart = new Chart($("chart"), {
+    type: "line", data: {datasets},
+    options: { maintainAspectRatio: false, interaction: {mode: "index", intersect: false},
+      scales: { x: {type: "linear", afterBuildTicks: localTicks, ticks: {color: fg, callback: tick, autoSkip: false, maxRotation: 0}, grid: {color: grid}},
+                y: {ticks: {color: fg}, grid: {color: grid}} },
+      plugins: { legend: {labels: {color: fg, boxWidth: 12, font: {family: "Inter"}, filter: (it, d) => !band || (!d.datasets[it.datasetIndex].faint && d.datasets[it.datasetIndex].label !== "_lo")}},
+                 tooltip: {callbacks: {title: it => { const p = local(it[0].parsed.x, tz);
+                   return `${p.weekday} ${p.day} ${p.month}, ${ampm(+p.hour)} ${p.timeZoneName}`; }}}} }
+  });
+  if (!datasets.length) chart.options.plugins.title = {display: true, text: "No model in this group provides this variable", color: fg};
+}
+
+let cview = "band";
+document.querySelectorAll("#cview button").forEach(b => b.onclick = () => { cview = b.dataset.v;
+  document.querySelectorAll("#cview button").forEach(x => x.classList.toggle("on", x === b)); if (M) drawChart(); });
+window.addEventListener("themechange", () => { if (M) drawChart(); });
+
+// ---------------------------------------------------------------- verification table
+let V, vvar = "t2m", vrange = "vars", vgrp = "all";
+const VGROUPS = {raw: "Single forecast", ens: "Ensemble mean", post: "Post-processed with observations"};  // verification groups (GROUPS is the model-source groups)
+async function initVer() {
+  V = await fetch("verification.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!V || !Object.keys(V.vars).length) return;
+  $("versec").style.display = "";
+  $("vermeta").textContent = `Forecast cycles ${V.cycles[0]} to ${V.cycles[V.cycles.length - 1]} (00 UTC) · ` +
+    `${V.n_stations.toLocaleString()} stations · updated ${V.generated.replace("T", " ")}`;
+  const box = $("vervar");
+  for (const [k, v] of Object.entries(V.vars)) {
+    const b = document.createElement("button"); b.textContent = v.label; b.dataset.k = k;
+    b.onclick = () => { vvar = k; drawVer(); }; box.appendChild(b);
+  }
+  if (!V.short) $("verrange").style.display = "none";
+  $("verrange").querySelectorAll("button").forEach(b => { if (!V[b.dataset.r]) b.style.display = "none"; b.onclick = () => { vrange = b.dataset.r; drawVer(); }; });
+  $("vergrp").querySelectorAll("button").forEach(b => b.onclick = () => { vgrp = b.dataset.g; drawVer(); });
+  drawVer();
+}
+function drawVer() {
+  const v = (V[vrange] || V.vars)[vvar] || V.vars[vvar], u = v.units, f = x => x == null || isNaN(x) ? "–" : x.toFixed(u === "in" ? 2 : u === "°" ? 0 : 1);
+  const f2 = x => x == null || isNaN(x) ? "–" : x.toFixed(2);
+  $("vervar").querySelectorAll("button").forEach(b => b.className = b.dataset.k === vvar ? "on" : "");
+  $("verrange").querySelectorAll("button").forEach(b => b.className = b.dataset.r === vrange ? "on" : "");
+  $("vergrp").querySelectorAll("button").forEach(b => b.className = b.dataset.g === vgrp ? "on" : "");
+  const lvl = r => vvar === "rh" && /levels/.test(r.hum || "");
+  const days = vrange === "short" ? [1, 2] : [1, 2, 3, 5, 7];
+  const pr = v.metric === "ets", ma = v.metric === "mae";
+  const dayLab = pr ? "ETS" : ma ? "MAE" : "RMSE";
+  let h = `<tr><th>Rank</th><th class="l">Model</th><th class="l">Source</th><th class="l">Type</th><th class="l">Group</th>` +
+    (pr ? `<th>ETS ≥${V.wet_threshold_in} in</th><th>ETS ≥${V.heavy_threshold_in} in</th>` : "") +
+    (ma ? `<th>MAE (${u})</th>` : "") + `<th>RMSE (${u})</th><th>Bias (${u})</th>` + (ma ? "" : `<th title="Willmott index of agreement (1 = perfect)">IOA</th>`) +
+    (pr || ma ? "" : `<th>MAE (${u})</th>`) + days.map(d => `<th>Day ${d} ${dayLab}</th>`).join("") + `<th>Cases</th></tr>`;
+  for (const r of v.rows.filter(r => vgrp === "all" || (r.group || "raw") === vgrp)) {
+    const byd = pr ? r.by_day_ets : r.by_day, rk = vgrp === "all" ? r.rank : r.grank;
+    h += `<tr class="${rk <= 3 ? "top" : ""}"><td>${rk}</td><td class="l">${r.name}${lvl(r) ? " *" : ""}</td><td class="l">${badge(r.id)}</td><td class="l kind">${r.kind}</td><td class="l kind">${VGROUPS[r.group || "raw"]}</td>` +
+      (pr ? `<td>${f2(r.ets)}</td><td>${f2(r.ets_heavy)}</td>` : "") + (ma ? `<td>${f(r.mae)}</td>` : "") +
+      `<td>${f(r.rmse)}</td><td>${(r.bias > 0 ? "+" : "") + f(r.bias)}</td>` + (ma ? "" : `<td>${r.ioa == null ? "–" : r.ioa.toFixed(2)}</td>`) +
+      (pr || ma ? "" : `<td>${f(r.mae)}</td>`) + days.map(d => `<td>${pr ? f2(byd[d - 1]) : f(byd[d - 1])}</td>`).join("") +
+      `<td>${r.n.toLocaleString()}</td></tr>`;
+  }
+  $("vertab").innerHTML = h;
+  let note = `${v.n_cases.toLocaleString()} forecast–observation pairs from ${v.n_stations.toLocaleString()} stations` +
+    (pr ? ` (${v.n_obs_wet.toLocaleString()} observed days ≥${V.wet_threshold_in} in, ${v.n_obs_heavy.toLocaleString()} ≥${V.heavy_threshold_in} in; ranked by ETS ≥${V.wet_threshold_in} in).` :
+     ma ? ` (only when the observed wind is ≥${V.dir_min_kt} kt; bias + means the forecast wind is turned clockwise).` : ".");
+  if (vvar === "t2m") note += ` Temperatures are adjusted to each station's height (${V.lapse_k_per_km || 6.5} °C per km) from the terrain each model sees, so coarse models are not penalised for smoothed mountains; unadjusted scores are under "2 m temperature (no elevation adjustment)".`;
+  if (vvar === "rh" && v.rows.some(lvl)) note += " * No 2 m humidity output: humidity taken from the lowest pressure level (1000 or 925 hPa) at 2 m temperature, an approximation.";
+  if (vgrp === "all") note += " Groups: ensemble means are smoother, which lowers RMSE, and post-processed models are trained on observations; compare within a group with the buttons above.";
+  if (vrange === "syn12") note += " Scored at 00 and 12 UTC only, so 12-hourly GenCast is ranked; this misses the 18 UTC afternoon peak.";
+  if (v.excluded.length) note += " Not ranked (too few forecasts yet at the common times, 12-hourly output like GenCast, or a limited-area domain covering under 97% of stations), each scored on its own cases: " +
+    v.excluded.map(e => e.rmse == null ? `${e.name} (${Math.round(e.cover * 100)}% coverage)` :
+      `${e.name}: ${ma ? "MAE " + f(e.mae) : "RMSE " + f(e.rmse)} ${u}, bias ${(e.bias > 0 ? "+" : "") + f(e.bias)} ${u} on its own ` +
+      `${e.hours.map(h => String(h).padStart(2, "0")).join("/")} UTC cases (${e.n.toLocaleString()} pairs; ` +
+      `not comparable with the ranking${e.hours.includes(18) ? "" : ", which includes the 18 UTC afternoon peak"})`).join("; ") + ".";
+  $("vernote").textContent = note;
+}
+initVer();
+
+// ---------------------------------------------------------------- weeks 3-6 outlook (pbc/pbc.json, experimental)
+let PB, pweek = 3;
+async function initPBC() {
+  PB = await fetch("pbc/pbc.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!PB || !PB.weeks || !PB.weeks.length) return;
+  $("outlook").style.display = "";
+  $("pbcmeta").textContent = `CFSv2 runs started ${PB.start} (${PB.members} members) · issued ${PB.issued} · observations used up to ${PB.obs_until}`;
+  $("pbcskill").textContent = PB.weeks.map(w => `${w.rpss_cv >= 0 ? "+" : ""}${w.rpss_cv.toFixed(3)} for week ${w.week}`).join(", ");
+  const box = $("pbcweeks");
+  PB.weeks.forEach(w => {
+    const b = document.createElement("button"); b.dataset.w = w.week;
+    b.textContent = `Week ${w.week} · ${w.label}`;
+    b.onclick = () => { pweek = w.week; drawPBC(); }; box.appendChild(b);
+  });
+  pweek = PB.weeks[0].week;
+  drawPBC();
+}
+function drawPBC() {
+  const w = PB.weeks.find(x => x.week === pweek);
+  $("pbcweeks").querySelectorAll("button").forEach(b => b.className = +b.dataset.w === pweek ? "on" : "");
+  const g = $("pbcgrid"); g.innerHTML = "";
+  for (const [k, lab] of [["warm", "Chance of a warmer-than-normal week"], ["cold", "Chance of a colder-than-normal week"]]) {
+    const card = document.createElement("div"); card.className = "card";
+    const img = new Image(); img.src = `pbc/${w.maps[k]}?v=${encodeURIComponent(PB.issued)}`; img.alt = `${lab}, week ${w.week}`;
+    img.onclick = () => { const z = $("zoom"); z.firstElementChild.src = img.src; z.style.display = "flex"; };
+    card.appendChild(img);
+    const cap = document.createElement("div"); cap.className = "cap";
+    cap.innerHTML = `<span class="name">${lab}</span><span class="kind">US mean ${Math.round(100 * w["conus_mean_p_" + k])} % (climatology 40 %)</span>`;
+    card.appendChild(cap); g.appendChild(card);
+  }
+}
+initPBC();
+
+// ---------------------------------------------------------------- 4-week test table (s2s/s2s.json, filled in as hindcasts finish)
+let S2, s2w = 1;
+const S2NAME = {gefs: ["NOAA GEFS (mean)", "dl"], cfs: ["NOAA CFSv2 (4-member mean)", "dl"], gfs: ["NOAA GFS", "dl"], ifs: ["ECMWF IFS", "dl"],
+  aifs: ["ECMWF AIFS", "dl"], ens: ["ECMWF ENS (ensemble mean)", "dl"], graphcast_ifs: ["GraphCast (started from the ECMWF IFS analysis)", "ai"],
+  fuxi_era5: ["FuXi (started from ERA5)", "ai"], mpas: ["MPAS-A (60 km, run here)", "nwp"], icon: ["ICON (~40 km, run here)", "nwp"],
+  cesm: ["CESM2 / CAM6 (1°, run here)", "nwp"], rainai: ["rainfallAI (days 1–7 only)", "ai"], rainai_s2s_dl: ["rainfallAI-S2S (deep learning: GEFS + MJO + ENSO)", "ai"], rainai_s2s: ["Statistical baseline for rainfallAI-S2S (GEFS + CFS + MJO + ENSO)", "ai"], e3sm: ["E3SM v3 (~100 km, run here)", "nwp"], climatology: ["MRMS climatology 2021–2025 (reference)", ""]};
+const S2BADGE = {ai: '<span class="badge ai">AI · run here</span>', nwp: '<span class="badge nwp">Physics · run here</span>', dl: '<span class="badge dl">Downloaded</span>', "": ""};
+async function initS2S() {
+  S2 = await fetch("s2s/s2s.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!S2 || !S2.rows || !S2.rows.length) return;
+  $("s2s").style.display = "";
+  const box = $("s2sweeks");
+  [...new Set(S2.rows.map(r => r.week))].sort().forEach(w => {
+    const b = document.createElement("button"); b.dataset.w = w;
+    b.textContent = `Week ${w} (days ${7 * w - 6}–${7 * w})`;
+    b.onclick = () => { s2w = w; drawS2S(); }; box.appendChild(b);
+  });
+  const shown = new Set(S2.rows.map(r => r.model));
+  const pend = Object.keys(S2NAME).filter(m => m !== "climatology" && !shown.has(m))
+    .map(m => `${S2NAME[m][0]} ${(S2.progress || {})[m] || 0}/${S2.total_starts}`);
+  $("s2snote").textContent = `Updated ${S2.updated}. ` + (pend.length ? `Still running, added when done: ${pend.join("; ")} starts. ` : "") +
+    "IOA = Willmott index of agreement; ETS = equitable threat score of a week with ≥1 or ≥2 in; bias = how often ≥1 in per week is forecast vs observed (1 = right). " +
+    "Late starts have fewer verified weeks because their weeks 3–4 end after the newest observations.";
+  drawS2S();
+}
+function drawS2S() {
+  $("s2sweeks").querySelectorAll("button").forEach(b => b.className = +b.dataset.w === s2w ? "on" : "");
+  const rs = S2.rows.filter(r => r.week === s2w).sort((a, b) => b.msess - a.msess);
+  const best = (k, lo) => { const v = rs.filter(r => r.model !== "climatology" && r[k] != null).map(r => r[k]); return lo ? Math.min(...v) : Math.max(...v); };
+  const B = {msess: best("msess"), ioa: best("ioa"), r: best("r"), mae: best("mae", 1), ets1in: best("ets1in"), ets2in: best("ets2in")};
+  const f = (r, k, d) => r[k] == null ? "–" : (r.model !== "climatology" && r[k] === B[k] ? `<b>${r[k].toFixed(d)}</b>` : r[k].toFixed(d));
+  let rank = 0;
+  $("s2stab").innerHTML = `<tr><th>Rank</th><th class="l">Model</th><th class="l">Source</th><th>Skill vs climatology ↑</th><th>IOA ↑</th><th>Correlation ↑</th><th>MAE (mm) ↓</th><th>ETS ≥1 in ↑</th><th>ETS ≥2 in ↑</th><th>Bias ≥1 in</th></tr>` +
+    rs.map(r => { const n = S2NAME[r.model] || [r.model, ""]; const clim = r.model === "climatology";
+      return `<tr${clim ? ' style="opacity:.75"' : ""}><td>${clim ? "–" : ++rank}</td><td class="l">${n[0]}</td><td class="l">${S2BADGE[n[1]]}</td>` +
+        `<td>${f(r, "msess", 3)}</td><td>${f(r, "ioa", 3)}</td><td>${f(r, "r", 3)}</td><td>${f(r, "mae", 1)}</td><td>${f(r, "ets1in", 3)}</td><td>${f(r, "ets2in", 3)}</td><td>${r.fbias1in == null ? "–" : r.fbias1in.toFixed(2)}</td></tr>`; }).join("") +
+    `<tr><td colspan="10" class="l" style="font-size:.8rem;color:var(--muted)">${rs.length ? rs[0].starts : 0} starts × ${(rs.length ? rs[0].n : 0).toLocaleString()} cell-weeks</td></tr>`;
+}
+initS2S();
+
+// ---------------------------------------------------------------- 7-day test table (rank7/rank7.json; models added as their hindcasts finish)
+const R7NAME = {rainai: ["rainfallAI (ensemble)", "ai"], stack: ["Statistical post-processing (our baseline)", "ai"], aifs: ["ECMWF AIFS", "dl"],
+  graphcast_ifs: ["GraphCast (started from the ECMWF IFS analysis)", "ai"], fuxi_era5: ["FuXi (started from ERA5)", "ai"], ifs_ens: ["ECMWF ENS (ensemble mean)", "dl"],
+  aigfs: ["NOAA AIGFS", "dl"], ifs: ["ECMWF IFS", "dl"], gefs: ["NOAA GEFS (mean)", "dl"], ukmo: ["UK Met Office UM", "dl"], nbm: ["National Blend of Models (NBM)", "dl"],
+  gfs: ["NOAA GFS", "dl"], cesm: ["CESM2 / CAM6 (1°, run here; land from a 1-year spin-up)", "nwp"], e3sm: ["E3SM v3 (~100 km, run here; land from a spin-up chain)", "nwp"],
+  wrf: ["WRF (12 km, run here)", "nwp"], icon: ["ICON (~40 km, run here)", "nwp"], mpas: ["MPAS-A (60 km, run here)", "nwp"],
+  nam: ["NAM (days 1–3 only)", "dl"], hrrr: ["HRRR (days 1–2 only)", "dl"]};
+const R7BADGE = {ai: '<span class="badge ai">AI · run here</span>', nwp: '<span class="badge nwp">Physics · run here</span>', dl: '<span class="badge dl">Downloaded</span>'};
+async function initR7() {
+  const R = await fetch("rank7/rank7.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!R || !R.rows || !R.rows.length) return;  // keep the static table
+  const full = R.rows.filter(r => r.days === 7).sort((a, b) => b.ets01 - a.ets01), part = R.rows.filter(r => r.days < 7);
+  const best = (k, lo) => (lo ? Math.min : Math.max)(...full.map(r => r[k]));
+  const B = {ets01: best("ets01"), ets1: best("ets1"), seeps: best("seeps", 1), ioa: best("ioa"), mae: best("mae", 1)};
+  const fb = Math.min(...full.map(r => Math.abs(r.fbias - 1)));
+  const f = (r, k, d) => (r.days === 7 && r[k] === B[k]) ? `<b>${r[k].toFixed(d)}</b>` : r[k].toFixed(d);
+  const row = (r, rk) => { const n = R7NAME[r.model] || [r.model, "dl"];
+    return `<tr><td>${rk}</td><td class="l">${n[0]}</td><td class="l">${R7BADGE[n[1]]}</td><td>${f(r, "ets01", 3)}</td><td>${f(r, "ets1", 3)}</td><td>${f(r, "seeps", 3)}</td><td>${f(r, "ioa", 3)}</td><td>${f(r, "mae", 2)}</td><td>${r.days === 7 && Math.abs(r.fbias - 1) === fb ? `<b>${r.fbias.toFixed(2)}</b>` : r.fbias.toFixed(2)}</td></tr>`; };
+  $("r7tab").innerHTML = `<tr><th>Rank (ETS)</th><th class="l">Model</th><th class="l">Source</th><th>ETS ≥0.1 in ↑</th><th>ETS ≥1 in ↑</th><th>SEEPS ↓</th><th>IOA ↑</th><th>MAE (mm) ↓</th><th>Rain-day bias (1 = right)</th></tr>` +
+    full.map((r, i) => row(r, i + 1)).join("") + part.sort((a, b) => b.days - a.days).map(r => row(r, "–")).join("");
+  const pend = Object.entries(R.pending || {}).filter(([m, n]) => !R.rows.some(r => r.model === m));
+  if (R.inits) $("r7head").textContent = `Test period: ${R.inits} seven-day forecasts, 1 July – 20 October 2026` + (R.inits < 38 ? " (dates every model has so far; all 38 once the last runs finish)" : "");
+  $("r7pend").textContent = pend.length ? `Still being re-run for these dates and added automatically when complete: ${pend.map(([m, n]) => `${(R7NAME[m] || [m])[0].split(" (")[0]} ${n}/38`).join(", ")} (updated ${R.updated}).` : `All the physics models we run ourselves are included (updated ${R.updated}).`;
+}
+initR7();
+
+// ---------------------------------------------------------------- 7-day temperature test table (rank7/t2m7.json from rainfallAI/eval/test_t2m.py)
+const T7NAME = {...R7NAME, raint: ["rainfallAI-T (temperature and humidity, ours)", "ai"], graphcast: ["GraphCast (started from GFS)", "ai"], fuxi: ["FuXi (started from GFS)", "ai"],
+  weathernext2_ifs: ["WeatherNext 2 (64-member mean, started from the IFS analysis)", "ai"], atlas_era5: ["NVIDIA Atlas (started from ERA5)", "ai"],
+  aurora15ens_ifs: ["Aurora 1.5 (10-member mean, started from the IFS analysis)", "ai"]};
+async function initT7() {
+  const T = await fetch("rank7/t2m7.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!T || !T.rows || !T.rows.length) return;  // section stays hidden
+  const rk = T.rows.filter(r => r.ranked).sort((a, b) => a.rmse - b.rmse);
+  const other = T.rows.filter(r => !r.ranked).sort((a, b) => b.inits - a.inits || a.rmse - b.rmse);
+  const B = {rmse: Math.min(...rk.map(r => r.rmse)), mae: Math.min(...rk.map(r => r.mae)), bias: Math.min(...rk.map(r => Math.abs(r.bias)))};
+  const dB = [0, 2, 4, 6].map(i => Math.min(...rk.map(r => r.rmse_day[i] == null ? 99 : r.rmse_day[i])));
+  const fx = (v, d) => v == null ? "–" : v.toFixed(d), b = (c, v) => c ? `<b>${v}</b>` : v;
+  const row = (r, k) => { const n = T7NAME[r.model] || [r.model, "dl"];
+    return `<tr><td>${k}</td><td class="l">${n[0]}</td><td class="l">${R7BADGE[n[1]]}</td>` +
+      `<td>${b(r.ranked && r.rmse === B.rmse, fx(r.rmse, 2))}</td><td>${b(r.ranked && r.mae === B.mae, fx(r.mae, 2))}</td>` +
+      `<td>${b(r.ranked && Math.abs(r.bias) === B.bias, (r.bias > 0 ? "+" : "") + fx(r.bias, 2))}</td>` +
+      [0, 2, 4, 6].map((i, j) => `<td>${b(r.ranked && r.rmse_day[i] === dB[j], fx(r.rmse_day[i], 2))}</td>`).join("") + `</tr>`; };
+  $("t7tab").innerHTML = `<tr><th>Rank (RMSE)</th><th class="l">Model</th><th class="l">Source</th><th>RMSE (°F) ↓</th><th>MAE (°F) ↓</th><th>Bias (°F)</th>` +
+    `<th>Day 1</th><th>Day 3</th><th>Day 5</th><th>Day 7</th></tr>` + rk.map((r, i) => row(r, i + 1)).join("") + other.map(r => row(r, "–")).join("");
+  $("t7head").textContent = `Test period: ${T.inits} seven-day forecasts, 1 July – 20 October 2026, ${T.n_stations.toLocaleString()} weather stations`;
+  const pend = other.filter(r => r.inits < T.inits);
+  $("t7note").textContent = `Ranked models are scored on the same ${T.common_cases.toLocaleString()} forecast–observation pairs; the Day columns are the RMSE (°F) at lead days 1, 3, 5 and 7. ` +
+    `Unranked rows (limited range or still running) are scored on their own cases` +
+    (pend.length ? `; still being run for the test dates and added automatically: ${pend.map(r => `${(T7NAME[r.model] || [r.model])[0].split(" (")[0]} ${r.inits}/${T.inits}`).join(", ")}` : "") +
+    `. CESM and E3SM start their land surface from a spin-up and run warm in these hindcasts. Updated ${T.updated}.`;
+  $("t2mtest").style.display = "";
+}
+initT7();
+
+// ---------------------------------------------------------------- 7-day wind test table (rank7/wind7.json from rainfallAI/eval/test_wind.py)
+const W7NAME = {...T7NAME, rainw: ["rainfallAI-W (wind, ours)", "ai"]};
+async function initW7() {
+  const W = await fetch("rank7/wind7.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!W || !W.rows || !W.rows.length) return;  // section stays hidden
+  const rk = W.rows.filter(r => r.ranked).sort((a, b) => a.rmse - b.rmse);
+  const other = W.rows.filter(r => !r.ranked).sort((a, b) => b.inits - a.inits || a.rmse - b.rmse);
+  const mn = f => Math.min(...rk.map(f));
+  const B = {rmse: mn(r => r.rmse), mae: mn(r => r.mae), bias: mn(r => Math.abs(r.bias)), dir: mn(r => r.dir_mae == null ? 999 : r.dir_mae)};
+  const dB = [0, 2, 4, 6].map(i => mn(r => r.rmse_day[i] == null ? 99 : r.rmse_day[i]));
+  const fx = (v, d) => v == null ? "–" : v.toFixed(d), b = (c, v) => c ? `<b>${v}</b>` : v;
+  const row = (r, k) => { const n = W7NAME[r.model] || [r.model, "dl"];
+    return `<tr><td>${k}</td><td class="l">${n[0]}</td><td class="l">${R7BADGE[n[1]]}</td>` +
+      `<td>${b(r.ranked && r.rmse === B.rmse, fx(r.rmse, 2))}</td><td>${b(r.ranked && r.mae === B.mae, fx(r.mae, 2))}</td>` +
+      `<td>${b(r.ranked && Math.abs(r.bias) === B.bias, (r.bias > 0 ? "+" : "") + fx(r.bias, 2))}</td>` +
+      `<td>${b(r.ranked && r.dir_mae === B.dir, fx(r.dir_mae, 1))}</td>` +
+      [0, 2, 4, 6].map((i, j) => `<td>${b(r.ranked && r.rmse_day[i] === dB[j], fx(r.rmse_day[i], 2))}</td>`).join("") + `</tr>`; };
+  $("w7tab").innerHTML = `<tr><th>Rank (RMSE)</th><th class="l">Model</th><th class="l">Source</th><th>Speed RMSE (mph) ↓</th><th>Speed MAE (mph) ↓</th>` +
+    `<th>Speed bias (mph)</th><th>Direction error (°) ↓</th><th>Day 1</th><th>Day 3</th><th>Day 5</th><th>Day 7</th></tr>` +
+    rk.map((r, i) => row(r, i + 1)).join("") + other.map(r => row(r, "–")).join("");
+  $("w7head").textContent = `Test period: ${W.inits} seven-day forecasts, 1 July – 20 October 2026, ${W.n_stations.toLocaleString()} weather stations`;
+  const pend = other.filter(r => r.inits < W.inits);
+  $("w7note").textContent = `Ranked models are scored on the same ${W.common_cases.toLocaleString()} forecast–observation pairs; the Day columns are the speed RMSE (mph) at lead days 1, 3, 5 and 7. ` +
+    `Unranked rows (limited range or still running) are scored on their own cases` +
+    (pend.length ? `; still being run for the test dates and added automatically: ${pend.map(r => `${(W7NAME[r.model] || [r.model])[0].split(" (")[0]} ${r.inits}/${W.inits}`).join(", ")}` : "") +
+    `. Updated ${W.updated}.`;
+  $("windtest").style.display = "";
+}
+initW7();
+
+// ---------------------------------------------------------------- 7-day humidity test table (rank7/rh7.json from rainfallAI/eval/test_rh.py)
+async function initH7() {
+  const H = await fetch("rank7/rh7.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (!H || !H.rows || !H.rows.length) return;  // section stays hidden
+  const rk = H.rows.filter(r => r.ranked).sort((a, b) => a.rmse - b.rmse);
+  const other = H.rows.filter(r => !r.ranked).sort((a, b) => b.inits - a.inits || a.rmse - b.rmse);
+  const mn = f => Math.min(...rk.map(f));
+  const B = {rmse: mn(r => r.rmse), mae: mn(r => r.mae), bias: mn(r => Math.abs(r.bias))};
+  const dB = [0, 2, 4, 6].map(i => mn(r => r.rmse_day[i] == null ? 99 : r.rmse_day[i]));
+  const fx = (v, d) => v == null ? "–" : v.toFixed(d), b = (c, v) => c ? `<b>${v}</b>` : v;
+  const row = (r, k) => { const n = T7NAME[r.model] || [r.model, "dl"], lev = r.hum && r.hum.endsWith("levels") ? " *" : "";
+    return `<tr><td>${k}</td><td class="l">${n[0]}${lev}</td><td class="l">${R7BADGE[n[1]]}</td>` +
+      `<td>${b(r.ranked && r.rmse === B.rmse, fx(r.rmse, 1))}</td><td>${b(r.ranked && r.mae === B.mae, fx(r.mae, 1))}</td>` +
+      `<td>${b(r.ranked && Math.abs(r.bias) === B.bias, (r.bias > 0 ? "+" : "") + fx(r.bias, 1))}</td>` +
+      [0, 2, 4, 6].map((i, j) => `<td>${b(r.ranked && r.rmse_day[i] === dB[j], fx(r.rmse_day[i], 1))}</td>`).join("") + `</tr>`; };
+  $("h7tab").innerHTML = `<tr><th>Rank (RMSE)</th><th class="l">Model</th><th class="l">Source</th><th>RMSE (% RH) ↓</th><th>MAE (% RH) ↓</th><th>Bias (% RH)</th>` +
+    `<th>Day 1</th><th>Day 3</th><th>Day 5</th><th>Day 7</th></tr>` + rk.map((r, i) => row(r, i + 1)).join("") + other.map(r => row(r, "–")).join("");
+  $("h7head").textContent = `Test period: ${H.inits} seven-day forecasts, 1 July – 20 October 2026, ${H.n_stations.toLocaleString()} weather stations`;
+  const pend = other.filter(r => r.inits < H.inits);
+  $("h7note").textContent = `* humidity from the pressure level nearest the ground (the model has no 2 m humidity). Ranked models are scored on the same ${H.common_cases.toLocaleString()} forecast–observation pairs; the Day columns are the RMSE (% RH) at lead days 1, 3, 5 and 7. ` +
+    `Unranked rows (limited range or still running) are scored on their own cases` +
+    (pend.length ? `; still being run for the test dates and added automatically: ${pend.map(r => `${(T7NAME[r.model] || [r.model])[0].split(" (")[0]} ${r.inits}/${H.inits}`).join(", ")}` : "") +
+    `. Updated ${H.updated}.`;
+  $("rhtest").style.display = "";
+}
+initH7();
+
+// ---------------------------------------------------------------- 7-day rain-probability test table (rank7/pop7.json from rainfallAI/eval/test_pop.py)
+const P7NAME = {...T7NAME, ens: ["ECMWF ENS (51 members)", "dl"], gefsp: ["NOAA GEFS (31 members)", "dl"], nbmp: ["National Blend of Models (NBM)", "dl"]};
+const P7KIND = {rainai: "own probabilities", stack: "own probabilities", ens: "share of members", gefsp: "share of members", nbmp: "own probabilities",
+  nbhd: "single run, 1.1° neighbourhood"};
+const P7SRC = {grid: null, gauge: null};  // rank7/pop7.json (MRMS cells), rank7/pop7g.json (ASOS gauges)
+let p7s = "grid";
+function renderP7() {
+  const P = P7SRC[p7s], gauge = p7s === "gauge";
+  $("p7src").querySelectorAll("button").forEach(b => b.className = b.dataset.s === p7s ? "on" : "");
+  const rk = P.rows.filter(r => r.days === 7).sort((a, b) => b.bss01 - a.bss01);
+  const other = P.rows.filter(r => r.days < 7).sort((a, b) => b.days - a.days);
+  const mx = f => Math.max(...rk.map(r => { const v = f(r); return v == null ? -9 : v; }));
+  const B = {bss01: mx(r => r.bss01), bss05: mx(r => r.bss05), bss1: mx(r => r.bss1), auc01: mx(r => r.auc01)};
+  const dB = [0, 2, 4, 6].map(i => mx(r => r.bss01_day[i]));
+  const fx = (v, d) => v == null ? "–" : v.toFixed(d), b = (c, v) => c ? `<b>${v}</b>` : v;
+  const row = (r, k) => { const n = P7NAME[r.model] || [r.model, "dl"], top = r.days === 7;
+    return `<tr><td>${k}</td><td class="l">${n[0]}</td><td class="l">${R7BADGE[n[1]]}</td><td class="l">${P7KIND[r.kind] || r.kind}</td>` +
+      ["bss01", "bss05", "bss1", "auc01"].map(c => `<td>${b(top && r[c] === B[c], fx(r[c], 3))}</td>`).join("") +
+      [0, 2, 4, 6].map((i, j) => `<td>${b(top && r.bss01_day[i] === dB[j], fx(r.bss01_day[i], 2))}</td>`).join("") + `</tr>`; };
+  $("p7tab").innerHTML = `<tr><th>Rank (BSS)</th><th class="l">Model</th><th class="l">Source</th><th class="l">Chance of rain from</th>` +
+    `<th>Brier skill ≥0.1 in ↑</th><th>Brier skill ≥0.5 in ↑</th><th>Brier skill ≥1 in ↑</th><th>ROC area ≥0.1 in ↑</th>` +
+    `<th>Day 1</th><th>Day 3</th><th>Day 5</th><th>Day 7</th></tr>` + rk.map((r, i) => row(r, i + 1)).join("") + other.map(r => row(r, "–")).join("");
+  $("p7head").textContent = `Test period: ${P.inits} seven-day forecasts, 1 July – 20 October 2026, ` + (gauge
+    ? `${(P.stations || 0).toLocaleString()} ASOS rain gauges (about ${P.cells_per_day.toLocaleString()} gauge readings per day)`
+    : `about ${P.cells_per_day.toLocaleString()} radar grid cells per day`);
+  const yn = rk.filter(r => r.yn01 != null).sort((a, b) => b.yn01 - a.yn01);
+  const pend = Object.entries(P.pending || {}).filter(([m]) => !P.rows.some(r => r.model === m));
+  const pct = Q => Q && Q.base01 && Q.base01.length ? (100 * Q.base01.reduce((a, v) => a + (v || 0), 0) / Q.base01.length).toFixed(1) + " %" : "–";
+  $("p7note").textContent = `Day columns: Brier skill ≥0.1 in at lead days 1, 3, 5 and 7. ` +
+    `Single runs forecast rain in too many places (see the rain-day bias in the rain test), so even with the neighbourhood most of them score below the average-chance forecast beyond day 1` +
+    (yn.length ? `; as plain yes/no forecasts (0 or 100 %) they do worse still (best: ${(P7NAME[yn[0].model] || [yn[0].model])[0].split(" (")[0]} ${yn[0].yn01.toFixed(3)})` : "") + `. ` +
+    `NBM picks out rainy days well (high ROC area), but its chances of 0.5 and 1 inch are two to three times how often that much rain fell, at every lead day and in both views, so its Brier skill at those amounts is below zero. ` +
+    (gauge
+      ? `ASOS gauges record 0.1 inch on fewer days than the radar grid (${pct(P)} of gauge-days vs ${pct(P7SRC.grid)} of grid cells), so every forecast's chances run high here and skill is lower than in the radar view. Each forecast is taken in the gauge's 0.1° cell; a gauge-day needs at least 22 of 24 hourly reports. CoCoRaHS gauges are read in the morning, so they do not match these midnight-to-midnight UTC days and are not used. `
+      : ``) +
+    `NAM and HRRR cover only the first days and are not ranked. rainfallAI's probabilities come from the same fixed model as the rain test above` +
+    (gauge ? `; it was trained on the radar grid, not on these gauges.` : ` and were trained on this radar grid; several versions were scored on this period during development, so its numbers are slightly optimistic.`) +
+    (pend.length ? ` Still being run for the test dates and added automatically: ${pend.map(([m, n]) => `${(P7NAME[m] || [m])[0].split(" (")[0]} ${n}/38`).join(", ")}.` : "") +
+    ` Updated ${P.updated}.`;
+}
+async function initP7() {
+  const get = u => fetch(u, {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+  const ok = P => P && P.rows && P.rows.length;
+  const [g, s] = await Promise.all([get("rank7/pop7.json"), get("rank7/pop7g.json")]);
+  P7SRC.grid = ok(g) ? g : null; P7SRC.gauge = ok(s) ? s : null;
+  if (!P7SRC.grid && !P7SRC.gauge) return;  // section stays hidden
+  if (!P7SRC.grid) p7s = "gauge";
+  const box = $("p7src");
+  box.innerHTML = [["grid", "Radar grid (MRMS)"], ["gauge", "Rain gauges (ASOS)"]].filter(([k]) => P7SRC[k])
+    .map(([k, l]) => `<button data-s="${k}">${l}</button>`).join("");
+  box.style.display = box.children.length > 1 ? "" : "none";
+  box.querySelectorAll("button").forEach(b => b.onclick = () => { p7s = b.dataset.s; renderP7(); });
+  renderP7();
+  $("poptest").style.display = "";
+}
+initP7();
+
+document.getElementById("zoom").onclick = e => e.currentTarget.style.display = "none";
+init().catch(e => document.getElementById("meta").textContent = "Could not load forecast data: " + e);
+</script>
+<script>
+// ================================================================ page chrome: theme, contents rail, progress, leaderboard, scorecards, wind
+(() => {
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const store = {get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                 set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }};
+
+  // ---------- theme toggle (light paper default; dark follows the system unless chosen)
+  const tb = document.getElementById("themebtn");
+  const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark"
+    : window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+  const setIcon = () => { if (tb) { tb.textContent = isDark() ? "☀" : "☾"; tb.title = isDark() ? "Light theme" : "Dark theme"; } };
+  if (tb) tb.onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = t; store.set("theme", t); setIcon();
+    window.dispatchEvent(new Event("themechange")); };
+  setIcon();
+
+  // ---------- contents rail + scrollspy + reading progress
+  const SHORT = {maps: "Forecast maps", versec: "Accuracy last week", cities: "City forecasts", states: "State animation", outlook: "Weeks 3–6 outlook",
+    rainai: "rainfallAI test", poptest: "Rain probability test", t2mtest: "Temperature test", windtest: "Wind test", rhtest: "Humidity test", s2s: "4-week test", models: "The models", about: "Methods"};
+  const secs = () => $$("main > section.block").filter(s => s.style.display !== "none");
+  function buildToc() {
+    const toc = document.getElementById("toc"); if (!toc) return;
+    toc.innerHTML = `<div class="ttl">Contents</div>` + secs().map((s, i) =>
+      `<a href="#${s.id}" data-id="${s.id}"><span>${String(i + 1).padStart(2, "0")}</span>${SHORT[s.id] || s.querySelector("h2").textContent}</a>`).join("");
+    spy();
+  }
+  let spyT = 0;
+  function spy() {
+    const y = window.scrollY + 120; let cur = null;
+    for (const s of secs()) if (s.offsetTop <= y) cur = s.id;
+    $$("#toc a, nav.top .links a").forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + cur));
+    const p = document.getElementById("progress"), h = document.documentElement.scrollHeight - innerHeight;
+    if (p) p.style.width = (h > 0 ? 100 * scrollY / h : 0).toFixed(1) + "%";
+  }
+  window.addEventListener("scroll", () => { if (!spyT) spyT = requestAnimationFrame(() => { spyT = 0; spy(); }); }, {passive: true});
+  const mo = new MutationObserver(() => buildToc());
+  $$("main > section.block").forEach(s => mo.observe(s, {attributes: true, attributeFilter: ["style"]}));
+  buildToc();
+
+  // ---------- cite button
+  const cb = document.getElementById("citebtn");
+  if (cb) cb.onclick = () => { const t = document.getElementById("citetext").textContent.replace(/\s+/g, " ").trim();
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { cb.textContent = "Copied"; setTimeout(() => cb.textContent = "Copy", 1500); }, () => {}); };
+
+  // ---------- scorecard shading for every results table (best value per column tinted, rank medals, our models marked)
+  function colDir(t) {
+    if (/^(Rank|Cases|Model|Source|Type|Group|Starts|n)\b/i.test(t)) return null;
+    if (/bias/i.test(t)) return /1 = right|≥|rain-day/i.test(t) ? "one" : "zero";
+    if (/↑/.test(t) || /\b(ETS|IOA|Correlation|Skill|MSESS|BSS|FSS)\b/.test(t)) return "hi";
+    if (/↓/.test(t) || /\b(RMSE|MAE|SEEPS|CRPS|Brier)\b/.test(t)) return "lo";
+    return null;
+  }
+  function enhance(tbl) {
+    const head = tbl.rows[0]; if (!head) return;
+    const hs = [...head.cells].map(c => c.textContent), n = hs.length;
+    const rows = [...tbl.rows].slice(1).filter(r => r.cells.length === n);
+    if (/^Rank/.test(hs[0])) for (const r of rows) {
+      const c = r.cells[0], k = parseInt(c.textContent, 10);
+      if (!c.querySelector(".rk") && k >= 1) c.innerHTML = `<span class="rk ${k <= 3 ? "m" + k : ""}">${k}</span>`;
+    }
+    for (const r of rows) if (/rainfallAI/.test(r.cells[1] ? r.cells[1].textContent : "")) r.classList.add("ours");
+    hs.forEach((h, j) => {
+      const dir = colDir(h); if (!dir) return;
+      const vals = rows.map(r => { const v = parseFloat(r.cells[j].textContent.replace("+", "").replace("−", "-")); return isFinite(v) ? v : null; });
+      const score = v => v == null ? null : dir === "hi" ? v : dir === "lo" ? -v : dir === "one" ? -Math.abs(v - 1) : -Math.abs(v);
+      const sc = vals.map(score).filter(v => v != null); if (sc.length < 3) return;
+      const best = Math.max(...sc), worst = Math.min(...sc);
+      rows.forEach((r, i) => {
+        const s = score(vals[i]), c = r.cells[j];
+        c.classList.remove("best"); c.style.background = "";
+        if (s == null || best === worst) return;
+        const t = (s - worst) / (best - worst);
+        c.style.background = `color-mix(in srgb, var(--good) ${Math.round(2 + 17 * t * t)}%, transparent)`;
+        if (s === best) c.classList.add("best");
+      });
+    });
+  }
+  const tmo = new MutationObserver(ms => { const ts = new Set(ms.map(m => m.target.closest ? m.target.closest("table.ver") : null).filter(Boolean));
+    tmo.disconnect(); ts.forEach(enhance); watch(); });
+  const watch = () => $$("table.ver").forEach(t => tmo.observe(t, {childList: true, subtree: true}));
+  $$("table.ver").forEach(enhance); watch();
+
+  // ---------- at a glance: last week's station leaderboard (verification.json)
+  const GL = [["t2m", "Temperature", "°F error"], ["rh", "Humidity", "% error"], ["wind", "Wind speed", "mph error"], ["precip", "Rain", "threat score"]];
+  async function glance() {
+    const box = document.getElementById("glance"); if (!box) return;
+    const V = await fetch("verification.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (!V || !V.vars) { box.style.display = "none"; return; }
+    box.innerHTML = GL.filter(([k]) => V.vars[k]).map(([k, name, unit]) => {
+      const v = V.vars[k], ets = v.metric === "ets", val = r => ets ? r.ets : r.rmse;
+      const rows = v.rows.filter(r => r.rank != null && val(r) != null).sort((a, b) => a.rank - b.rank);
+      if (!rows.length) return "";
+      const vs = rows.map(val), best = ets ? Math.max(...vs) : Math.min(...vs), worst = ets ? Math.min(...vs) : Math.max(...vs);
+      const w = x => 18 + 82 * (best === worst ? 1 : (ets ? x - worst : worst - x) / Math.abs(best - worst));
+      const col = g => `var(--${g})`, grp = id => typeof group === "function" ? group(id) : "dl";
+      const top = rows.slice(0, 3).map((r, i) => `<div class="grow"><span class="medal m${i + 1}">${i + 1}</span><span class="nm" title="${r.name}">${r.name.replace(/ \(.*\)$/, "")}</span>` +
+        `<span class="vl">${ets ? val(r).toFixed(2) : val(r).toFixed(1)}</span><span class="bar"><i style="width:${w(val(r)).toFixed(0)}%;background:${col(grp(r.id))}"></i></span></div>`).join("");
+      const ours = rows.find(r => r.id === (k === "precip" ? "rainai" : "raint"));
+      const foot = ours && k !== "wind" ? `Our ${k === "precip" ? "rainfallAI" : "rainfallAI-T"}: <b>#${ours.rank}</b> of ${rows.length}` : `${rows.length} forecasts ranked`;
+      return `<div class="gcard" data-k="${k}" role="button" tabindex="0"><div class="gh"><b>${name}</b><span>${ets ? "ETS ≥" + V.wet_threshold_in + " in ↑" : "RMSE, " + unit.replace(" error", "") + " ↓"}</span></div>${top}<div class="gfoot">${foot}</div></div>`;
+    }).join("");
+    const open = k => { try { vvar = k; vrange = "vars"; vgrp = "all"; drawVer(); } catch (e) {} document.getElementById("versec").scrollIntoView({behavior: "smooth"}); };
+    $$(".gcard", box).forEach(c => { c.onclick = () => open(c.dataset.k); c.onkeydown = e => { if (e.key === "Enter") open(c.dataset.k); }; });
+    const cyc = V.cycles || [];
+    box.setAttribute("title", `Most accurate forecasts at ${(V.n_stations || 0).toLocaleString()} weather stations, cycles ${cyc[0] || ""} to ${cyc[cyc.length - 1] || ""}`);
+  }
+  glance();
+
+  // ---------- shared loaders for the map libraries (d3, topojson, US states)
+  const loadScript = src => new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); });
+  let libs = null, usTopo = null;
+  window.loadGeoLibs = () => libs || (libs = (async () => {
+    if (!window.d3) await loadScript("https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js");
+    if (!window.topojson) await loadScript("https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js");
+  })());
+  window.loadUS = () => usTopo || (usTopo = window.loadGeoLibs().then(() => fetch("https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/states-10m.json")).then(r => r.json()));
+  window.decodeRGB = async (url, nx, rowsTotal) => {  // PNG -> Uint8ClampedArray RGBA, read in strips (Safari canvas limits)
+    const blob = await (await fetch(url)).blob();
+    let img;
+    try { img = await createImageBitmap(blob, {colorSpaceConversion: "none", premultiplyAlpha: "none"}); }
+    catch (e) { img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(blob); }); }
+    const out = new Uint8ClampedArray(nx * rowsTotal * 4), CH = 1600, c = document.createElement("canvas"); c.width = nx; c.height = CH;
+    const g = c.getContext("2d", {willReadFrequently: true});
+    for (let y0 = 0; y0 < rowsTotal; y0 += CH) {
+      const n = Math.min(CH, rowsTotal - y0); g.clearRect(0, 0, nx, CH); g.drawImage(img, 0, y0, nx, n, 0, 0, nx, n);
+      out.set(g.getImageData(0, 0, nx, n).data, y0 * nx * 4);
+    }
+    return out;
+  };
+
+  // ---------- wind particles (shared by Figure 1 and the state animation)
+  const WIND = {stops: [0, 5, 10, 15, 20, 25, 30, 35, 40, 50], cols: ["#3b5b9a", "#3f8fbf", "#3fb3a3", "#59c46a", "#a3cf45", "#dccb39", "#efa232", "#ec732c", "#d94428", "#a8235a"]};
+  window.WIND_PAL = WIND;
+  const hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+  window.windColor = s => { const st = WIND.stops, cs = WIND.cols; let i = st.length - 1; while (i > 0 && s < st[i]) i--;
+    const f = i < st.length - 1 ? Math.min(1, (s - st[i]) / (st[i + 1] - st[i])) : 0, a = hex(cs[i]), b = hex(cs[Math.min(i + 1, cs.length - 1)]);
+    return a.map((x, j) => Math.round(x + (b[j] - x) * f)); };
+  class Flow {
+    // field on a coarse node grid (step device px): vx, vy in px per frame (NaN = no wind there)
+    constructor(canvas, step) { this.c = canvas; this.g = canvas.getContext("2d"); this.step = step; this.on = false; this.vis = true; this.p = []; }
+    size(W, H) { this.W = W; this.H = H; this.gw = Math.ceil(W / this.step) + 1; this.gh = Math.ceil(H / this.step) + 1;
+      this.vx = new Float32Array(this.gw * this.gh).fill(NaN); this.vy = new Float32Array(this.gw * this.gh).fill(NaN); this.sp = new Float32Array(this.gw * this.gh);
+      const n = Math.round(Math.min(4200, W * H / 230)); this.p = Array.from({length: n}, () => this.spawn({})); }
+    at(x, y) { const i = Math.round(y / this.step) * this.gw + Math.round(x / this.step); return i; }
+    spawn(q) { for (let k = 0; k < 20; k++) { q.x = Math.random() * this.W; q.y = Math.random() * this.H; if (!isNaN(this.vx[this.at(q.x, q.y)])) break; }
+      q.age = Math.floor(Math.random() * 90); return q; }
+    frame() {
+      const g = this.g, dpr = this.dpr || 1;
+      g.globalCompositeOperation = "destination-in"; g.fillStyle = "rgba(0,0,0,0.92)"; g.fillRect(0, 0, this.W, this.H);
+      g.globalCompositeOperation = "source-over"; g.lineWidth = 1.15 * dpr; g.lineCap = "round";
+      const buckets = [[], [], [], []];
+      for (const q of this.p) {
+        const i = this.at(q.x, q.y), vx = this.vx[i], vy = this.vy[i];
+        if (isNaN(vx) || q.age > 100) { this.spawn(q); continue; }
+        const nx = q.x + vx, ny = q.y + vy, s = this.sp[i];
+        buckets[s < 8 ? 0 : s < 18 ? 1 : s < 30 ? 2 : 3].push(q.x, q.y, nx, ny);
+        q.x = nx; q.y = ny; q.age++;
+        if (q.x < 0 || q.y < 0 || q.x >= this.W || q.y >= this.H) this.spawn(q);
+      }
+      const A = [0.45, 0.65, 0.82, 0.95];
+      buckets.forEach((b, k) => { if (!b.length) return; g.strokeStyle = `rgba(255,255,255,${A[k]})`; g.beginPath();
+        for (let j = 0; j < b.length; j += 4) { g.moveTo(b[j], b[j + 1]); g.lineTo(b[j + 2], b[j + 3]); } g.stroke(); });
+    }
+    loop() { if (!this.on) return; if (this.vis && !document.hidden) this.frame(); requestAnimationFrame(() => this.loop()); }
+    start() { if (this.on) return; this.on = true;
+      if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) { for (let k = 0; k < 40; k++) this.frame(); this.on = false; return; }
+      this.loop(); }
+    stop() { this.on = false; }
+    clear() { this.g.clearRect(0, 0, this.W, this.H); }
+  }
+  window.Flow = Flow;
+
+  // ---------- Figure 1: (a) GFS wind particles, (b) GFS rain, (c) rainfallAI rain, one clock over 7 days (anim/uv_hero.png, anim/rain_*.png)
+  const RAIN = {stops: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3],
+    cols: ["#2b6f8f", "#2fa7bf", "#36c47c", "#94d144", "#f1d43b", "#f5a524", "#ee6a2c", "#df3439", "#c2187a", "#9b3fd1"]};
+  async function fig1() {
+    const fig = document.getElementById("herofig"); if (!fig) return;
+    const $i = id => document.getElementById(id);
+    let wm, rm, us, uv; const rb = {};
+    try {
+      [wm, rm] = await Promise.all([fetch("anim/meta.json", {cache: "no-cache"}).then(r => r.json()),
+        fetch("anim/rain_meta.json", {cache: "no-cache"}).then(r => r.ok ? r.json() : null).catch(() => null)]);
+      if (!wm.hero_hours) throw new Error("old meta");
+      us = await window.loadUS();
+      uv = await window.decodeRGB(`anim/uv_hero.png?v=${encodeURIComponent(wm.init)}`, wm.nx, wm.ny * wm.hero_hours.length);
+      if (rm) for (const k of Object.keys(rm.models))
+        rb[k] = await window.decodeRGB(`anim/${rm.models[k].file}?v=${encodeURIComponent(rm.models[k].updated)}`, rm.nx, rm.ny * rm.hours.length);
+    } catch (e) { fig.style.display = "none"; return; }
+    for (const k of ["gfs", "ai"]) if (!rb[k]) { const m = $i("rmsg_" + k); m.style.display = "flex";
+      m.textContent = k === "ai" ? "Today's rainfallAI forecast is not ready yet (it arrives around 4 AM ET)." : "GFS rain not available yet."; }
+    const states = topojson.feature(us, us.objects.states).features.filter(f => +f.id <= 56 && f.id !== "02" && f.id !== "15");
+    const nation = {type: "FeatureCollection", features: states}, borders = topojson.mesh(us, us.objects.states, (a, b) => a !== b);
+    const wbox = $i("windbox"), wbg = $i("wbg"), flow = new Flow($i("wpt"), 4);
+    const rcan = {gfs: $i("rc_gfs"), ai: $i("rc_ai")};
+    const t0 = Date.parse(wm.times[0]), STEP = 4;
+    let L = null, t = 6, playing = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches), visible = true;
+
+    // colour tables: rain (with transparency for light rain), wind speed
+    const hexA = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+    const rainLut = new Uint32Array(1017);
+    for (let k = 0; k < 1017; k++) {
+      const x = k / 4 / 254, v = rm ? rm.enc.hi * x * x : 0, st = RAIN.stops, cs = RAIN.cols;
+      if (v < st[0]) { rainLut[k] = 0; continue; }
+      let i = st.length - 1; while (i > 0 && v < st[i]) i--;
+      const f = i < st.length - 1 ? Math.min(1, (v - st[i]) / (st[i + 1] - st[i])) : 0, a = hexA(cs[i]), b = hexA(cs[Math.min(i + 1, cs.length - 1)]);
+      const c = a.map((y, j) => Math.round(y + (b[j] - y) * f)), al = Math.round(255 * Math.min(0.95, 0.5 + 0.45 * Math.min(1, (v - 0.01) / 0.09)));
+      rainLut[k] = (al << 24) | (c[2] << 16) | (c[1] << 8) | c[0];
+    }
+    const at = (g, lon, lat) => { let x = lon < 0 ? lon + 360 : lon; const fy = (lat - g.lat0) / g.dlat, fx = (x - g.lon0) / g.dlon;
+      const iy = Math.min(g.ny - 2, Math.max(0, Math.floor(fy))), ix = Math.min(g.nx - 2, Math.max(0, Math.floor(fx)));
+      return [iy * g.nx + ix, fx - ix, fy - iy]; };
+
+    function layout() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(wbox.clientWidth * dpr), H = Math.round(wbox.clientHeight * dpr);
+      if (!W || !H) return false;
+      const proj = d3.geoAlbers().fitExtent([[8 * dpr, 8 * dpr], [W - 8 * dpr, H - 8 * dpr]], nation);
+      const mk = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
+      const maskC = mk(), landC = mk(), bordC = mk(), tmp = mk();
+      let g = maskC.getContext("2d", {willReadFrequently: true}); g.beginPath(); d3.geoPath(proj, g)(nation); g.fill();
+      const al = g.getImageData(0, 0, W, H).data;
+      g = landC.getContext("2d"); g.fillStyle = "#18243a"; g.beginPath(); d3.geoPath(proj, g)(nation); g.fill();
+      g = bordC.getContext("2d"); const p = d3.geoPath(proj, g);
+      g.strokeStyle = "rgba(255,255,255,.2)"; g.lineWidth = 0.6 * dpr; g.beginPath(); p(borders); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 1 * dpr; g.beginPath(); p(nation); g.stroke();
+      for (const c of [wbg, $i("wpt"), rcan.gfs, rcan.ai]) { c.width = W; c.height = H; }
+      flow.dpr = dpr; flow.size(W, H);
+      const gw = flow.gw, gh = flow.gh, nodes = [];
+      for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+        const x = gx * STEP, y = gy * STEP;
+        if (x >= W || y >= H || al[4 * (y * W + x) + 3] < 128) continue;
+        const ll = proj.invert([x, y]); if (!ll) continue;
+        const p0 = proj(ll), pe = proj([ll[0] + 0.1, ll[1]]), pn = proj([ll[0], ll[1] + 0.1]); if (!p0 || !pe || !pn) continue;
+        const ex = pe[0] - p0[0], ey = pe[1] - p0[1], el = Math.hypot(ex, ey), nx = pn[0] - p0[0], ny = pn[1] - p0[1], nl = Math.hypot(nx, ny);
+        nodes.push({k: gy * gw + gx, w: at(wm, ll[0], ll[1]), r: rm ? at(rm, ll[0], ll[1]) : null, ex: ex / el, ey: ey / el, nx: nx / nl, ny: ny / nl});
+      }
+      const small = () => { const c = document.createElement("canvas"); c.width = gw; c.height = gh; return c; };
+      L = {W, H, dpr, gw, gh, nodes, maskC, landC, bordC, tmp, img: {w: new ImageData(gw, gh), gfs: new ImageData(gw, gh), ai: new ImageData(gw, gh)},
+        sm: {w: small(), gfs: small(), ai: small()}};
+      sparkBase();
+      return true;
+    }
+    function compose(target, key, alpha) {  // field (coarse image) -> smooth, clipped to land, over dark land + borders
+      const {W, H, gw, gh, tmp} = L, s = L.sm[key];
+      s.getContext("2d").putImageData(L.img[key], 0, 0);
+      const tg = tmp.getContext("2d"); tg.globalCompositeOperation = "source-over"; tg.clearRect(0, 0, W, H);
+      tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = "high"; tg.drawImage(s, 0, 0, gw * STEP, gh * STEP);
+      tg.globalCompositeOperation = "destination-in"; tg.drawImage(L.maskC, 0, 0); tg.globalCompositeOperation = "source-over";
+      const g = target.getContext("2d"); g.clearRect(0, 0, W, H); g.drawImage(L.landC, 0, 0);
+      g.globalAlpha = alpha; g.drawImage(tmp, 0, 0); g.globalAlpha = 1; g.drawImage(L.bordC, 0, 0);
+    }
+    const blend = (hrs, tt) => { const n = hrs.length, s = hrs[1] - hrs[0], i = Math.max(0, Math.min(n - 2, Math.floor((tt - hrs[0]) / s)));
+      return [i, i + 1, Math.max(0, Math.min(1, (tt - hrs[i]) / s))]; };
+    function render() {
+      if (!L) return;
+      // (a) wind
+      {
+        const [i0, i1, a] = blend(wm.hero_hours, t), fs = wm.ny * wm.nx, nx = wm.nx, e = wm.enc.uv, sc = 0.07 * L.dpr * (L.W / 900);
+        const px = new Uint32Array(L.img.w.data.buffer); px.fill(0); flow.vx.fill(NaN); flow.vy.fill(NaN);
+        for (const n of L.nodes) {
+          const [j, wx, wy] = n.w;
+          const bl = (f, c) => { const o = f * fs + j, q0 = uv[4 * o + c], q1 = uv[4 * (o + 1) + c], q2 = uv[4 * (o + nx) + c], q3 = uv[4 * (o + nx + 1) + c];
+            if (q0 === 255 || q1 === 255 || q2 === 255 || q3 === 255) return NaN; return (q0 * (1 - wx) + q1 * wx) * (1 - wy) + (q2 * (1 - wx) + q3 * wx) * wy; };
+          const bu = bl(i0, 0) * (1 - a) + bl(i1, 0) * a, bv = bl(i0, 1) * (1 - a) + bl(i1, 1) * a;
+          if (!isFinite(bu) || !isFinite(bv)) continue;
+          const u = e.lo + (e.hi - e.lo) * bu / 254, v = e.lo + (e.hi - e.lo) * bv / 254, s = Math.hypot(u, v);
+          flow.vx[n.k] = (u * n.ex + v * n.nx) * sc; flow.vy[n.k] = (u * n.ey + v * n.ny) * sc; flow.sp[n.k] = s;
+          const c = windColor(s); px[n.k] = (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0];
+        }
+        compose(wbg, "w", 0.8);
+      }
+      // (b, c) rain
+      for (const k of ["gfs", "ai"]) {
+        if (!rb[k]) continue;
+        const B = rb[k], [i0, i1, a] = blend(rm.hours, t), fs = rm.ny * rm.nx, nx = rm.nx, px = new Uint32Array(L.img[k].data.buffer); px.fill(0);
+        for (const n of L.nodes) {
+          const [j, wx, wy] = n.r;
+          const bl = f => { const o = f * fs + j, q0 = B[4 * o], q1 = B[4 * (o + 1)], q2 = B[4 * (o + nx)], q3 = B[4 * (o + nx + 1)];
+            if (q0 === 255 || q1 === 255 || q2 === 255 || q3 === 255) return NaN; return (q0 * (1 - wx) + q1 * wx) * (1 - wy) + (q2 * (1 - wx) + q3 * wx) * wy; };
+          const v = bl(i0) * (1 - a) + bl(i1) * a; if (!isFinite(v)) continue;
+          px[n.k] = rainLut[Math.round(v * 4)];
+        }
+        compose(rcan[k], k, 1);
+      }
+      // clock labels, sparklines
+      const vt = new Date(t0 + t * 3600e3);
+      $i("f1when").textContent = vt.toLocaleString("en-US", {weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short"});
+      $i("f1lead").textContent = `forecast hour +${Math.round(t)} · rain over the 6 hours before`;
+      $i("f1slider").value = Math.round(t);
+      sparkDraw();
+    }
+    // US-average rain per 6 h step (same scale for both models) with the current time marked
+    let SP = null;
+    function sparkBase() {
+      if (!rm) return;
+      SP = {};
+      let ymax = 0.01;
+      for (const k of ["gfs", "ai"]) { if (!rb[k]) continue;
+        const B = rb[k], fs = rm.ny * rm.nx, vals = rm.hours.map((h, f) => { let s = 0, n = 0;
+          for (const nd of L.nodes) { const q = B[4 * (f * fs + nd.r[0])]; if (q !== 255) { const x = q / 254; s += rm.enc.hi * x * x; n++; } } return n ? s / n : 0; });
+        SP[k] = vals; ymax = Math.max(ymax, ...vals); }
+      SP.ymax = ymax;
+    }
+    function sparkDraw() {
+      if (!SP) return;
+      for (const k of ["gfs", "ai"]) {
+        const c = $i("sp_" + k), vals = SP[k]; if (!vals) { c.style.display = "none"; continue; }
+        const dpr = L.dpr, W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr); if (!W) continue;
+        if (c.width !== W) { c.width = W; c.height = H; }
+        const g = c.getContext("2d"), n = vals.length, X = i => (i / (n - 1)) * W, Y = v => H - 3 * dpr - (H - 8 * dpr) * v / SP.ymax;
+        g.clearRect(0, 0, W, H);
+        const col = k === "ai" ? "179,146,255" : "120,190,255";
+        g.beginPath(); g.moveTo(0, H); vals.forEach((v, i) => g.lineTo(X(i), Y(v))); g.lineTo(W, H); g.closePath();
+        g.fillStyle = `rgba(${col},.28)`; g.fill();
+        g.beginPath(); vals.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))); g.strokeStyle = `rgba(${col},.95)`; g.lineWidth = 1.3 * dpr; g.stroke();
+        const x = W * t / 168; g.fillStyle = "#e8eef8"; g.fillRect(x - dpr, 0, 2 * dpr, H);
+        const lab = `US-average rain · peak ${Math.max(...vals).toFixed(2)} in / 6 h`;
+        g.font = `${10 * dpr}px Inter, system-ui, sans-serif`; g.textBaseline = "top";
+        const tw = g.measureText(lab).width, lx = x < W / 2 ? W - tw - 6 * dpr : 4 * dpr;  // keep the label away from the time marker
+        g.fillStyle = "rgba(10,17,28,.75)"; g.fillRect(lx - 3 * dpr, 1 * dpr, tw + 6 * dpr, 13 * dpr);
+        g.fillStyle = "rgba(210,220,236,.9)"; g.fillText(lab, lx, 2 * dpr);
+      }
+    }
+
+    // legends, day marks, controls
+    $i("wlegbar").style.background = `linear-gradient(90deg, ${WIND.cols.join(",")})`;
+    const rn = RAIN.stops.length - 1;
+    $i("rlegbar").style.background = `linear-gradient(90deg, ${RAIN.cols.map((c, i) => `${c} ${(100 * i / rn).toFixed(1)}%`).join(", ")})`;
+    $i("rlegticks").innerHTML = RAIN.stops.map((s, i) => `<span style="left:${(100 * i / rn).toFixed(1)}%">${s}</span>`).join("");
+    const days = []; for (let h = 12; h < 168; h += 24) {
+      const d = new Date(t0 + h * 3600e3).toLocaleDateString("en-US", {weekday: "short", day: "numeric", timeZone: "America/Chicago"});
+      days.push(`<span data-h="${h}" style="left:${(100 * h / 168).toFixed(2)}%">${d}</span>`); }
+    $i("f1days").innerHTML = days.join("");
+    const btn = $i("f1play");
+    const setPlay = on => { playing = on; btn.textContent = on ? "❚❚" : "▶"; btn.setAttribute("aria-label", on ? "Pause" : "Play"); };
+    btn.onclick = () => setPlay(!playing);
+    $i("f1slider").oninput = e => { setPlay(false); t = +e.target.value; render(); };
+    document.querySelectorAll("#f1days span").forEach(s => s.onclick = () => { setPlay(false); t = +s.dataset.h; render(); });
+    const nowH = (Date.now() - t0) / 3600e3; t = Math.max(6, Math.min(162, Math.round(nowH / 6) * 6));
+    if (!layout()) return;
+    setPlay(playing); render(); flow.start();
+    let last = 0, acc = 0;
+    const tick = ts => {
+      const dt = last ? Math.min(0.1, (ts - last) / 1000) : 0; last = ts;
+      if (playing && visible && !document.hidden) { acc += dt; t += dt * 5; if (t > 168) t = 6;
+        if (acc > 1 / 30) { acc = 0; render(); } }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    if ("IntersectionObserver" in window) new IntersectionObserver(es => { visible = es.some(e => e.isIntersecting); flow.vis = visible; }).observe(fig);
+    let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (layout()) render(); }, 250); });
+  }
+  if (document.readyState === "complete") fig1(); else window.addEventListener("load", fig1);
+})();
+</script>
+<script>
+// ------------------------------------------------------------ state animation (GFS hourly, anim/*.png + anim/meta.json)
+(() => {
+  const S = id => document.getElementById(id);
+  const sec = S("states"); if (!sec) return;
+  const PAL = {
+    t2m: {bounds: [-15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105],
+      cols: ["#2c0a4a", "#4b1b7a", "#6a2ca3", "#5a3fc0", "#3f5bd8", "#2f7ce8", "#2aa0e8", "#36c1e0", "#4fd6c1", "#5fd98f", "#7fdb5c", "#a8de3f",
+        "#d2e03a", "#f2d53a", "#f8b733", "#f8962d", "#f17227", "#e24c22", "#c9291f", "#a3121f", "#7d0a2a", "#a3156a", "#c93a9e", "#e46fc8"],
+      ticks: [-10, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], units: "2 m temperature, °F", fmt: v => `${Math.round(v)} °F`},
+    precip: {bounds: [0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.75, 1, 1.5],
+      cols: ["#c6f5c0", "#7fd97a", "#3fae3f", "#1f7f33", "#77b9f0", "#2f8be0", "#1f5fc0", "#a07fe0", "#7f4fd0", "#b04fb0", "#e0459a", "#e8282f", "#f2802a", "#f8c93a"],
+      ticks: [0.01, 0.04, 0.1, 0.2, 0.4, 0.75, 1.5], units: "rain rate, inches per hour", dry: true, fmt: v => v < 0.005 ? "dry" : `${v.toFixed(2)} in/h`},
+    wind: {bounds: [0, 5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75],
+      cols: ["#5e7fbf", "#4aa5c8", "#47c1a5", "#5fcf6a", "#a6d94b", "#e2d63c", "#f2aa33", "#ef7a2d", "#e04a2c", "#b8285a", "#85307f", "#5a1f66"],
+      ticks: [0, 10, 20, 30, 40, 50, 60, 75], units: "10 m wind speed, mph", fmt: v => `${Math.round(v)} mph`},
+  };
+  const TZ = {Arizona: "America/Phoenix", Idaho: "America/Boise", Indiana: "America/Indiana/Indianapolis", Michigan: "America/Detroit"};
+  for (const s of ["California", "Nevada", "Oregon", "Washington"]) TZ[s] = "America/Los_Angeles";
+  for (const s of ["Colorado", "Montana", "New Mexico", "Utah", "Wyoming"]) TZ[s] = "America/Denver";
+  for (const s of ["Alabama", "Arkansas", "Illinois", "Iowa", "Kansas", "Louisiana", "Minnesota", "Mississippi", "Missouri", "Nebraska",
+    "North Dakota", "Oklahoma", "South Dakota", "Tennessee", "Texas", "Wisconsin"]) TZ[s] = "America/Chicago";
+  const CITY = [["Houston", 29.76, -95.37], ["New York", 40.71, -74.01], ["Los Angeles", 34.05, -118.24], ["Chicago", 41.88, -87.63], ["Phoenix", 33.45, -112.07],
+    ["Denver", 39.74, -104.99], ["Seattle", 47.61, -122.33], ["Miami", 25.76, -80.19], ["Atlanta", 33.75, -84.39], ["Dallas", 32.78, -96.80],
+    ["Minneapolis", 44.98, -93.27], ["Boston", 42.36, -71.06], ["San Francisco", 37.77, -122.42], ["Salt Lake City", 40.76, -111.89], ["Kansas City", 39.10, -94.58],
+    ["New Orleans", 29.95, -90.07], ["Washington", 38.91, -77.04], ["Philadelphia", 39.95, -75.17], ["Charlotte", 35.23, -80.84], ["Nashville", 36.16, -86.78],
+    ["Detroit", 42.33, -83.05], ["Cleveland", 41.50, -81.69], ["Pittsburgh", 40.44, -79.99], ["St. Louis", 38.63, -90.20], ["Indianapolis", 39.77, -86.16],
+    ["Memphis", 35.15, -90.05], ["Oklahoma City", 35.47, -97.52], ["San Antonio", 29.42, -98.49], ["Austin", 30.27, -97.74], ["El Paso", 31.76, -106.49],
+    ["Albuquerque", 35.08, -106.65], ["Tucson", 32.22, -110.97], ["Las Vegas", 36.17, -115.14], ["San Diego", 32.72, -117.16], ["Sacramento", 38.58, -121.49],
+    ["Portland", 45.52, -122.68], ["Boise", 43.62, -116.20], ["Billings", 45.78, -108.50], ["Omaha", 41.26, -95.93], ["Tampa", 27.95, -82.46],
+    ["Raleigh", 35.78, -78.64], ["Cheyenne", 41.14, -104.82], ["Bismarck", 46.81, -100.78], ["Sioux Falls", 43.55, -96.73], ["Des Moines", 41.59, -93.62],
+    ["Milwaukee", 43.04, -87.91], ["Louisville", 38.25, -85.76], ["Birmingham", 33.52, -86.80], ["Jackson", 32.30, -90.18], ["Little Rock", 34.75, -92.29],
+    ["Wichita", 37.69, -97.34], ["Columbia", 34.00, -81.03], ["Richmond", 37.54, -77.44], ["Baltimore", 39.29, -76.61], ["Charleston WV", 38.35, -81.63],
+    ["Burlington", 44.48, -73.21], ["Portland ME", 43.66, -70.26], ["Manchester", 42.99, -71.46], ["Providence", 41.82, -71.41], ["Hartford", 41.76, -72.67],
+    ["Wilmington", 39.74, -75.55], ["Newark", 40.74, -74.17], ["Columbus", 39.96, -83.00], ["Fargo", 46.88, -96.79], ["Helena", 46.59, -112.04],
+    ["Reno", 39.53, -119.81], ["Spokane", 47.66, -117.43], ["Jacksonville", 30.33, -81.66], ["Orlando", 28.54, -81.38], ["Savannah", 32.08, -81.09],
+    ["Mobile", 30.69, -88.04], ["Shreveport", 32.53, -93.75], ["Corpus Christi", 27.80, -97.40], ["Amarillo", 35.22, -101.83], ["Lubbock", 33.58, -101.86],
+    ["Buffalo", 42.89, -78.88], ["Albany", 42.65, -73.75], ["Grand Rapids", 42.96, -85.67], ["Madison", 43.07, -89.40], ["Duluth", 46.79, -92.10],
+    ["Rapid City", 44.08, -103.23], ["Flagstaff", 35.20, -111.65], ["Santa Fe", 35.69, -105.94], ["Fresno", 36.74, -119.79], ["Eugene", 44.05, -123.09]];
+
+  let flow = null, uvB = null, uvLoading = null;
+  function windField(f0, f1, a) {  // blended u/v at the current hour -> particle velocities
+    if (!uvB || !geo || !geo.nodes) return;
+    const nx = meta.nx, fs = meta.ny * nx, e = meta.enc.uv, sc = 0.06 * flow.dpr * Math.max(1, geo.W / 1100);
+    flow.vx.fill(NaN); flow.vy.fill(NaN);
+    for (const n of geo.nodes) {
+      const val = (f, c) => { const o = f * fs + n.j;
+        if (uvB[4 * o + c] === 255 || uvB[4 * (o + 1) + c] === 255 || uvB[4 * (o + nx) + c] === 255 || uvB[4 * (o + nx + 1) + c] === 255) return NaN;
+        return (uvB[4 * o + c] * (1 - n.wx) + uvB[4 * (o + 1) + c] * n.wx) * (1 - n.wy) + (uvB[4 * (o + nx) + c] * (1 - n.wx) + uvB[4 * (o + nx + 1) + c] * n.wx) * n.wy; };
+      const bu = val(f0, 0) * (1 - a) + (a > 0 ? val(f1, 0) * a : 0), bv = val(f0, 1) * (1 - a) + (a > 0 ? val(f1, 1) * a : 0);
+      if (!isFinite(bu) || !isFinite(bv)) continue;
+      const u = e.lo + (e.hi - e.lo) * bu / 254, v = e.lo + (e.hi - e.lo) * bv / 254;
+      flow.vx[n.k] = (u * n.ex + v * n.nx) * sc; flow.vy[n.k] = (u * n.ey + v * n.ny) * sc; flow.sp[n.k] = Math.hypot(u, v);
+    }
+  }
+  async function windOn() {
+    if (!uvB) { if (!uvLoading) uvLoading = window.decodeRGB(`anim/uv.png?v=${encodeURIComponent(meta.init)}`, meta.nx, meta.ny * meta.hours.length).then(b => uvB = b).catch(() => null);
+      await uvLoading; }
+    if (uvB && vname === "wind") { const [f0, f1, a] = frameAt(hour); windField(f0, f1, a); flow.start(); }
+  }
+  let meta = null, feats = null, cur = null, vname = "t2m", hour = 0, playing = false, lastT = 0, geo = null, lut = null, dryCol = 0;
+  const bytes = {}, loading = {};
+  const msg = t => { S("stmsg").textContent = t || ""; S("stmsg").style.display = t ? "" : "none"; };
+
+  function loadScript(src) {
+    return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); });
+  }
+  const hex = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  const decode = (b, e) => { const x = b / 254; return e.lo + (e.hi - e.lo) * (e.kind === "sqrt" ? x * x : x); };
+
+  // colour per fractional byte (step 1/4), smooth between the palette stops (weather-app style)
+  function buildLut() {
+    const p = PAL[vname], e = meta.enc[vname], stops = p.bounds.slice(0, p.cols.length), cols = p.cols.map(hex);
+    lut = new Uint32Array(1017);
+    const dry = hex("#1d2a3a");  // dark land on the map plate
+    for (let k = 0; k < 1017; k++) {
+      const v = decode(k / 4, e);
+      let rgb, a = 255;
+      if (p.dry && v < stops[0]) { rgb = dry; } else {
+        let i = stops.length - 1; while (i > 0 && v < stops[i]) i--;
+        const f = i < stops.length - 1 ? Math.min(1, Math.max(0, (v - stops[i]) / (stops[i + 1] - stops[i]))) : 0;
+        const c0 = cols[i], c1 = cols[Math.min(i + 1, cols.length - 1)];
+        rgb = [0, 1, 2].map(j => Math.round(c0[j] + (c1[j] - c0[j]) * f));
+      }
+      lut[k] = (a << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0];
+    }
+    dryCol = lut[0];
+    const n = stops.length - 1;
+    S("stgrad").style.background = `linear-gradient(90deg, ${p.cols.slice(0, stops.length).map((c, i) => `${c} ${(100 * i / n).toFixed(1)}%`).join(", ")})`;
+    const pos = v => { let i = 0; while (i < n && v > stops[i + 1]) i++; return 100 * (i + Math.min(1, Math.max(0, (v - stops[i]) / (stops[i + 1] - stops[i])))) / n; };
+    S("stticks").innerHTML = p.ticks.map(t => `<span style="left:${pos(t).toFixed(1)}%">${t}</span>`).join("");
+    S("stunits").textContent = p.units;
+  }
+
+  async function loadVar(name) {
+    if (bytes[name]) return bytes[name];
+    if (!loading[name]) loading[name] = (async () => {
+      const r = await fetch(`anim/${name}.png?v=${encodeURIComponent(meta.init)}`);
+      if (!r.ok) throw new Error("no data");
+      const blob = await r.blob();
+      let img;
+      try { img = await createImageBitmap(blob, {colorSpaceConversion: "none", premultiplyAlpha: "none"}); }
+      catch (e) { img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = URL.createObjectURL(blob); }); }
+      const nx = meta.nx, ny = meta.ny, nf = meta.hours.length, out = new Uint8Array(nf * ny * nx), CH = 16;
+      const c = document.createElement("canvas"); c.width = nx; c.height = ny * CH;
+      const g = c.getContext("2d", {willReadFrequently: true});
+      for (let f0 = 0; f0 < nf; f0 += CH) {
+        const n = Math.min(CH, nf - f0);
+        g.clearRect(0, 0, nx, ny * CH); g.drawImage(img, 0, f0 * ny, nx, n * ny, 0, 0, nx, n * ny);
+        const d = g.getImageData(0, 0, nx, n * ny).data;
+        for (let i = 0, o = f0 * ny * nx; i < n * ny * nx; i++) out[o + i] = d[4 * i];
+      }
+      bytes[name] = out; return out;
+    })();
+    return loading[name];
+  }
+
+  // geometry of the selected state: canvas pixels inside it -> grid indices + bilinear weights
+  function setup() {
+    const box = S("stbox"), can = S("stcan"), ov = S("stov");
+    const cssW = Math.max(280, box.clientWidth || 640), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const b = d3.geoBounds(cur), asp = Math.min(1.15, Math.max(0.5,
+      (b[1][1] - b[0][1]) / ((b[1][0] - b[0][0]) * Math.cos((b[0][1] + b[1][1]) / 2 * Math.PI / 180))));
+    const cssH = Math.round(Math.min(cssW * asp, 560, Math.max(320, (window.innerHeight || 800) - 230))), W = Math.round(cssW * dpr), H = Math.round(cssH * dpr), pad = 14 * dpr;
+    box.style.height = cssH + "px";
+    for (const c of [can, ov, S("stpt")]) { c.width = W; c.height = H; c.style.width = cssW + "px"; c.style.height = cssH + "px"; }
+    const proj = d3.geoMercator().fitExtent([[pad, pad], [W - pad, H - pad]], cur);
+    const m = document.createElement("canvas"); m.width = W; m.height = H;
+    const mg = m.getContext("2d", {willReadFrequently: true}); mg.fillStyle = "#000"; mg.beginPath(); d3.geoPath(proj, mg)(cur); mg.fill();
+    const alpha = mg.getImageData(0, 0, W, H).data;
+    const idx = [], i00 = [], wx = [], wy = [];
+    const {lat0, dlat, lon0, dlon, nx, ny} = meta;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const p = y * W + x; if (alpha[4 * p + 3] < 128) continue;
+      const ll = proj.invert([x + 0.5, y + 0.5]); if (!ll) continue;
+      let lon = ll[0]; if (lon < 0) lon += 360;
+      const fy = (ll[1] - lat0) / dlat, fx = (lon - lon0) / dlon;
+      const iy = Math.min(ny - 2, Math.max(0, Math.floor(fy))), ix = Math.min(nx - 2, Math.max(0, Math.floor(fx)));
+      idx.push(p); i00.push(iy * nx + ix); wx.push(Math.min(1, Math.max(0, fx - ix))); wy.push(Math.min(1, Math.max(0, fy - iy)));
+    }
+    geo = {W, H, cssW, cssH, dpr, proj, idx: Int32Array.from(idx), i00: Int32Array.from(i00), wx: Float32Array.from(wx), wy: Float32Array.from(wy),
+      img: can.getContext("2d").createImageData(W, H)};
+    // wind-particle nodes (every 4 device px inside the state): grid index + local east/north directions on screen
+    if (!flow) flow = new Flow(S("stpt"), 4);
+    flow.dpr = dpr; flow.size(W, H); geo.nodes = [];
+    for (let gy = 0; gy < flow.gh; gy++) for (let gx = 0; gx < flow.gw; gx++) {
+      const x = gx * 4, y = gy * 4; if (x >= W || y >= H || alpha[4 * (y * W + x) + 3] < 128) continue;
+      const ll = proj.invert([x, y]); if (!ll) continue;
+      const p0 = proj(ll), pe = proj([ll[0] + 0.05, ll[1]]), pn = proj([ll[0], ll[1] + 0.05]);
+      const ex = pe[0] - p0[0], ey = pe[1] - p0[1], el = Math.hypot(ex, ey), qx = pn[0] - p0[0], qy = pn[1] - p0[1], ql = Math.hypot(qx, qy);
+      let lon = ll[0]; if (lon < 0) lon += 360;
+      const fy = (ll[1] - lat0) / dlat, fx = (lon - lon0) / dlon;
+      const iy = Math.min(ny - 2, Math.max(0, Math.floor(fy))), ix = Math.min(nx - 2, Math.max(0, Math.floor(fx)));
+      geo.nodes.push({k: gy * flow.gw + gx, j: iy * nx + ix, wx: fx - ix, wy: fy - iy, ex: ex / el, ey: ey / el, nx: qx / ql, ny: qy / ql});
+    }
+    // overlay: state outline, neighbours, cities
+    const g = ov.getContext("2d"); g.clearRect(0, 0, W, H);
+    const path = d3.geoPath(proj, g), cs = getComputedStyle(document.documentElement);
+    g.lineWidth = 0.8 * dpr; g.strokeStyle = "rgba(255,255,255,.2)";
+    for (const f of feats) if (f !== cur) { g.beginPath(); path(f); g.stroke(); }
+    g.lineWidth = 1.6 * dpr; g.strokeStyle = "rgba(255,255,255,.9)"; g.beginPath(); path(cur); g.stroke();
+    g.font = `600 ${11.5 * dpr}px Inter, system-ui, sans-serif`; g.textBaseline = "middle";
+    for (const [n, la, lo] of CITY) {
+      if (!d3.geoContains(cur, [lo, la])) continue;
+      const [x, y] = proj([lo, la]);
+      g.fillStyle = "#111"; g.beginPath(); g.arc(x, y, 3 * dpr, 0, 7); g.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, 1.8 * dpr, 0, 7); g.fill();
+      g.lineWidth = 3 * dpr; g.strokeStyle = "rgba(0,0,0,.65)"; g.strokeText(n, x + 6 * dpr, y); g.fillStyle = "#fff"; g.fillText(n, x + 6 * dpr, y);
+    }
+  }
+
+  // hour (0..168, fractional) -> two frames + blend weight
+  function frameAt(h) {
+    const hs = meta.hours; let i = 0;
+    while (i < hs.length - 2 && hs[i + 1] <= h) i++;
+    const a = Math.min(1, Math.max(0, (h - hs[i]) / (hs[i + 1] - hs[i])));
+    return [i, i + 1, a];
+  }
+
+  function draw() {
+    const B = bytes[vname]; if (!geo || !B || !lut) return;
+    const {idx, i00, wx, wy, img} = geo, nx = meta.nx, fs = meta.ny * nx;
+    const [f0, f1, a] = frameAt(hour), o0 = f0 * fs, o1 = f1 * fs, out = new Uint32Array(img.data.buffer);
+    out.fill(0);
+    for (let k = 0; k < idx.length; k++) {
+      const j = i00[k], x = wx[k], y = wy[k];
+      const p0 = o0 + j, p1 = o1 + j;
+      const q00 = B[p0], q01 = B[p0 + 1], q10 = B[p0 + nx], q11 = B[p0 + nx + 1];
+      if (q00 === 255 || q01 === 255 || q10 === 255 || q11 === 255) continue;
+      let v = (q00 * (1 - x) + q01 * x) * (1 - y) + (q10 * (1 - x) + q11 * x) * y;
+      if (a > 0) {
+        const r00 = B[p1], r01 = B[p1 + 1], r10 = B[p1 + nx], r11 = B[p1 + nx + 1];
+        v = v * (1 - a) + ((r00 * (1 - x) + r01 * x) * (1 - y) + (r10 * (1 - x) + r11 * x) * y) * a;
+      }
+      out[idx[k]] = lut[Math.round(v * 4)];
+    }
+    S("stcan").getContext("2d").putImageData(img, 0, 0);
+    if (vname === "wind" && uvB) windField(f0, f1, a);
+    const t = new Date(Date.parse(meta.times[0]) + hour * 3600e3), tz = TZ[cur.properties.name] || "America/New_York";
+    const s = new Intl.DateTimeFormat("en-US", {timeZone: tz, weekday: "short", month: "short", day: "numeric", hour: "numeric", timeZoneName: "short"}).format(t);
+    const native = meta.hours.includes(Math.round(hour));
+    S("sttime").innerHTML = `<b>${s}</b> · +${Math.round(hour)} h${native ? "" : " · blended"}`;
+    S("stslider").value = Math.round(hour);
+    document.querySelectorAll("#stdays button").forEach(b => b.classList.toggle("on", Math.floor(hour / 24) === +b.dataset.d));
+  }
+
+  function valueAt(px, py) {
+    const B = bytes[vname]; if (!geo || !B) return null;
+    const ll = geo.proj.invert([px * geo.dpr, py * geo.dpr]); if (!ll || !d3.geoContains(cur, ll)) return null;
+    let lon = ll[0]; if (lon < 0) lon += 360;
+    const fy = (ll[1] - meta.lat0) / meta.dlat, fx = (lon - meta.lon0) / meta.dlon, nx = meta.nx;
+    const iy = Math.min(meta.ny - 2, Math.max(0, Math.floor(fy))), ix = Math.min(nx - 2, Math.max(0, Math.floor(fx))), x = fx - ix, y = fy - iy;
+    const [f0, f1, a] = frameAt(hour), j = iy * nx + ix;
+    const bl = o => { const q = [B[o + j], B[o + j + 1], B[o + j + nx], B[o + j + nx + 1]]; if (q.includes(255)) return NaN;
+      return (q[0] * (1 - x) + q[1] * x) * (1 - y) + (q[2] * (1 - x) + q[3] * x) * y; };
+    const bv = bl(f0 * meta.ny * nx) * (1 - a) + (a > 0 ? bl(f1 * meta.ny * nx) * a : 0);
+    return isFinite(bv) ? decode(bv, meta.enc[vname]) : null;
+  }
+
+  async function select(name) {
+    const f = feats.find(x => x.properties.name === name); if (!f) return;
+    cur = f; S("stsel").value = name;
+    d3.selectAll("#usmap path.st").classed("sel", d => d === f);
+    setup(); draw();
+    if (vname === "wind") windOn();
+    try { localStorage.setItem("st_state", name); } catch (e) {}
+  }
+  async function setVar(v) {
+    vname = v; document.querySelectorAll("#stvar button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+    buildLut();
+    if (!bytes[v]) { msg("Loading frames…"); try { await loadVar(v); } catch (e) { msg("Animation data not available today."); return; } }
+    msg(""); draw();
+    if (flow) { if (v === "wind") windOn(); else { flow.stop(); flow.clear(); } }
+  }
+
+  function tick(t) {
+    if (!playing) return;
+    const dt = Math.min(0.1, (t - (lastT || t)) / 1000); lastT = t;
+    hour += dt * +S("stspeed").value; if (hour > 168) hour = 0;
+    draw(); requestAnimationFrame(tick);
+  }
+  function play(on) {
+    playing = on; S("stplay").textContent = on ? "❚❚ Pause" : "▶ Play"; S("stplay").setAttribute("aria-label", on ? "Pause" : "Play");
+    if (on) { lastT = 0; requestAnimationFrame(tick); }
+  }
+
+  async function start() {
+    try {
+      const r = await fetch("anim/meta.json", {cache: "no-cache"}); if (!r.ok) throw new Error("no meta");
+      meta = await r.json();
+      const us = await window.loadUS();
+      feats = topojson.feature(us, us.objects.states).features.filter(f => +f.id <= 56 && f.id !== "02" && f.id !== "15");
+    } catch (e) { sec.style.display = "none"; return; }
+    const ini = new Date(meta.init);
+    S("stsub").innerHTML = `Pick a state on the map (or the list) to watch the next 7 days hour by hour. ${meta.model}, run of
+      ${ini.toLocaleDateString("en-US", {month: "short", day: "numeric", timeZone: "UTC"})} 00 UTC.`;
+    const svg = d3.select("#usmap"), usp = d3.geoAlbersUsa().fitSize([480, 300], {type: "FeatureCollection", features: feats});
+    svg.selectAll("path").data(feats).join("path").attr("class", "st").attr("d", d3.geoPath(usp))
+      .on("click", (ev, d) => select(d.properties.name)).append("title").text(d => d.properties.name);
+    const names = feats.map(f => f.properties.name).sort();
+    S("stsel").innerHTML = names.map(n => `<option>${n}</option>`).join("");
+    S("stsel").onchange = e => select(e.target.value);
+    document.querySelectorAll("#stvar button").forEach(b => b.onclick = () => setVar(b.dataset.v));
+    S("stplay").onclick = () => play(!playing);
+    S("stslider").oninput = e => { play(false); hour = +e.target.value; draw(); };
+    const days = [];
+    for (let d = 0; d < 7; d++) {
+      const t = new Date(Date.parse(meta.times[0]) + (d * 24 + 12) * 3600e3);
+      days.push(`<button data-d="${d}">${t.toLocaleDateString("en-US", {weekday: "short", day: "numeric", timeZone: "UTC"})}</button>`);
+    }
+    S("stdays").innerHTML = days.join("");
+    document.querySelectorAll("#stdays button").forEach(b => b.onclick = () => { play(false); hour = +b.dataset.d * 24 + 12; draw(); });
+    const box = S("stbox"), tip = S("sttip");
+    box.onmousemove = e => { const r = box.getBoundingClientRect(), v = valueAt(e.clientX - r.left, e.clientY - r.top);
+      if (v === null) { tip.style.display = "none"; return; }
+      tip.style.display = ""; tip.textContent = PAL[vname].fmt(v); tip.style.left = (e.clientX - r.left + 12) + "px"; tip.style.top = (e.clientY - r.top - 10) + "px"; };
+    box.onmouseleave = () => tip.style.display = "none";
+    let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (cur) { setup(); draw(); } }, 200); });
+    let first = "Texas"; try { first = localStorage.getItem("st_state") || first; } catch (e) {}
+    await select(names.includes(first) ? first : "Texas");
+    await setVar("t2m");
+  }
+  // load only when the section comes near the screen (3.6 MB of frames)
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); start(); } }, {rootMargin: "600px"});
+    io.observe(sec);
+  } else start();
+})();
+</script>
+</body>
+</html>

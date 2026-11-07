@@ -1,0 +1,64 @@
+{
+ "start": "2026-11-06",
+ "issued": "2026-11-07 12:25 UTC",
+ "members": 16,
+ "obs_until": "2026-10-28",
+ "weeks": [
+  {
+   "week": 3,
+   "from": "2026-11-20",
+   "to": "2026-11-26",
+   "label": "Nov 20\u2013Nov 26",
+   "rpss_cv": 0.079,
+   "train_starts": 168,
+   "maps": {
+    "warm": "tas_warm_w3.png",
+    "cold": "tas_cold_w3.png"
+   },
+   "conus_mean_p_warm": 0.491,
+   "conus_mean_p_cold": 0.303
+  },
+  {
+   "week": 4,
+   "from": "2026-11-27",
+   "to": "2026-12-03",
+   "label": "Nov 27\u2013Dec 3",
+   "rpss_cv": 0.059,
+   "train_starts": 165,
+   "maps": {
+    "warm": "tas_warm_w4.png",
+    "cold": "tas_cold_w4.png"
+   },
+   "conus_mean_p_warm": 0.55,
+   "conus_mean_p_cold": 0.257
+  },
+  {
+   "week": 5,
+   "from": "2026-12-04",
+   "to": "2026-12-10",
+   "label": "Dec 4\u2013Dec 10",
+   "rpss_cv": 0.052,
+   "train_starts": 165,
+   "maps": {
+    "warm": "tas_warm_w5.png",
+    "cold": "tas_cold_w5.png"
+   },
+   "conus_mean_p_warm": 0.484,
+   "conus_mean_p_cold": 0.31
+  },
+  {
+   "week": 6,
+   "from": "2026-12-11",
+   "to": "2026-12-17",
+   "label": "Dec 11\u2013Dec 17",
+   "rpss_cv": 0.051,
+   "train_starts": 165,
+   "maps": {
+    "warm": "tas_warm_w6.png",
+    "cold": "tas_cold_w6.png"
+   },
+   "conus_mean_p_warm": 0.462,
+   "conus_mean_p_cold": 0.331
+  }
+ ]
+}
